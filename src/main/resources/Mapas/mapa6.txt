@@ -1,0 +1,15 @@
+XXXXXXXXXXXXXXXXXXXX
+X..X.X.....X...X...X
+X.....X..X..XX.X...X
+X.........X.....X..X
+X.Z.X...X..........X
+X..X....X..........X
+XX.XP..X..........XX
+X..Z........X.....XX
+X....XX..X....X..X.X
+X.XXX......XXX.....X
+X...............X..X
+X..ZX..X..X..P.X...X
+X.....X...P...XXX..X
+X.P......SPP....X..X
+XXXXXXXXXXXXXXXXXXXX
