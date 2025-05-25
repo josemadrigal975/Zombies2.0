@@ -22,7 +22,7 @@ import javax.swing.JPanel;
 
 public class Mapas extends JPanel {
     private char[][] mapa;
-    private Image imgMuro, imgPiso, imgZombie, imgJugador;
+    private Image imgMuro, imgPiso, imgZombie, imgJugador, imgSalida;
     private List<Jugador> jugadores = new ArrayList<>();    
 
     public Mapas(char[][] mapa) {
@@ -38,10 +38,11 @@ public class Mapas extends JPanel {
     }
 
     private void cargarImagenes() {
-        imgMuro = cargarImagen("/Imagenes/muro.jpg");
-        imgPiso = cargarImagen("/Imagenes/piso.jpg");
+        imgMuro = cargarImagen("/Imagenes/muroo.jpg");
+        imgPiso = cargarImagen("/Imagenes/piso.jpeg");
         imgZombie = cargarImagen("/Imagenes/zombie.jpg");
         imgJugador = cargarImagen("/Imagenes/jugador.jpg");
+        imgSalida = cargarImagen("/Imagenes/salida.jpeg");
     }
 
     private Image cargarImagen(String ruta) {
@@ -74,6 +75,7 @@ public class Mapas extends JPanel {
                     case '.' -> imgPiso;
                     case 'Z' -> imgZombie;
                     case 'P' -> imgJugador;
+                    case 'S' -> imgSalida;
                     default -> imgPiso;
                 };
                 if (img != null) {
