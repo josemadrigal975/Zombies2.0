@@ -10,4 +10,5 @@
         <maven.compiler.release>21</maven.compiler.release>
         <exec.mainClass>com.mycompany.zombiesmultiplayer.ZombiesMultiplayer</exec.mainClass>
     </properties>
+    <name>Proyecto2 POO</name>
 </project>
