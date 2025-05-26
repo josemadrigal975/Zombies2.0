@@ -18,7 +18,6 @@ Modelos\Mensaje.class
 Cliente\Pantalla$1.class
 Cliente\PantallaLobby$6.class
 Cliente\ClienteZombie.class
-Modelos\Jugador.class
 Server\PantallaServidor.class
 Cliente\PantallaLobby.class
 Mapas\cargarMapas.class

@@ -5,7 +5,7 @@
 package Server;
 
 import Mapas.cargarMapas;
-import Modelos.Jugador;
+import Personajes.Jugador;
 import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import java.io.IOException;

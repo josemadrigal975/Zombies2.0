@@ -6,7 +6,7 @@ package Cliente;
 
 import Mapas.Mapas;
 import Mapas.cargarMapas;
-import Modelos.Jugador;
+import Personajes.Jugador;
 import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import Sonidos.ReproductorAudio;

@@ -4,7 +4,7 @@
  */
 package Mapas;
 
-import Modelos.Jugador;
+import Personajes.Jugador;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Image;

@@ -8,7 +8,7 @@ package Cliente;
  *
  * @author jos_m
  */
-import Modelos.Jugador;
+import Personajes.Jugador;
 import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import java.io.*;
