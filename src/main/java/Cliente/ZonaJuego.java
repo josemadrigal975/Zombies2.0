@@ -11,22 +11,28 @@ import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import Sonidos.ReproductorAudio;
 import java.awt.Dimension;
+import java.awt.event.KeyEvent; // << NUEVO
+import java.awt.event.KeyListener; // << NUEVO
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.SwingUtilities;
 
 /**
  *
  * @author jos_m
  */
-public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
+public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, KeyListener { // << MODIFICADO
     private String nombreJugador;
     private ReproductorAudio reproductor = new ReproductorAudio();
     private ObjectOutputStream salida;
     private ObjectInputStream entrada;
     private List<Jugador> jugadores = new ArrayList<>();
+    private Mapas panelMapaActual; // << NUEVO: Referencia al panel del mapa
+    private char[][] definicionMapa; // << NUEVO: Para recargar el mapa base
+
     /**
      * Creates new form ZonaJuego
      */
@@ -34,47 +40,56 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
         initComponents();
         reproductor.reproducir("/Sonidos/musica.wav");
         txtSms.setEditable(false);
+
+        // Para eventos de teclado
+        this.addKeyListener(this);
+        this.setFocusable(true);   
+        this.requestFocusInWindow(); 
     }
     
     public void cargarPanelMapa() {
-        char[][] mapa = cargarMapas.cargarMapaDesdeArchivo("mapa1.txt");
-        Mapas panelMapa = new Mapas(mapa);
+        definicionMapa = cargarMapas.cargarMapaDesdeArchivo("mapa1.txt"); 
+        panelMapaActual = new Mapas(definicionMapa);
 
-        // Asegurar tamaño del contenedor
-        Dimension dim = panelMapa.getPreferredSize();
+        Dimension dim = panelMapaActual.getPreferredSize();
         jPanel1.setLayout(null);
         jPanel1.setPreferredSize(dim);
         jPanel1.setSize(dim);
 
-        // Preparar y agregar
-        panelMapa.setBounds(0, 0, dim.width, dim.height);
-        panelMapa.setBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.RED, 2)); // debug visual
+        panelMapaActual.setBounds(0, 0, dim.width, dim.height);
+        // panelMapaActual.setBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.RED, 2)); 
 
         jPanel1.removeAll();
-        jPanel1.add(panelMapa);
+        jPanel1.add(panelMapaActual);
         jPanel1.revalidate();
         jPanel1.repaint();
     }
     
     public void setJugadores(List<Jugador> jugadores) {
         this.jugadores = jugadores;
+       
+        SwingUtilities.invokeLater(this::repaintMapa);
     }
 
     public void repaintMapa() {
+        if (panelMapaActual == null) { 
+            cargarPanelMapa(); // Esto crea panelMapaActual
+        }
+
+        panelMapaActual = new Mapas(definicionMapa); 
+        panelMapaActual.setJugadores(this.jugadores); 
+
+        Dimension dim = panelMapaActual.getPreferredSize();
+        panelMapaActual.setBounds(0, 0, dim.width, dim.height);
+        
         jPanel1.removeAll();
-        jPanel1.setLayout(null);
-
-        Mapas panelMapa = new Mapas(cargarMapas.cargarMapaDesdeArchivo("mapa1.txt"));
-        panelMapa.setJugadores(jugadores); // 💡 este método lo vas a agregar en Mapas.java
-
-        Dimension dim = panelMapa.getPreferredSize();
-        panelMapa.setBounds(0, 0, dim.width, dim.height);
-
-        jPanel1.add(panelMapa);
+        jPanel1.add(panelMapaActual);
         jPanel1.revalidate();
         jPanel1.repaint();
         
         System.out.println("✅ Mapa repintado con " + jugadores.size() + " jugadores.");
+
+        this.requestFocusInWindow(); 
     }
 
 
@@ -86,29 +101,37 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
 
         setTitle("Zona de juego de " + nombreJugador);
 
-        cargarPanelMapa();   // Cargar mapa con tamaño asegurado
-        pack();              // Asegurar que el frame se ajuste al contenido
-        setLocationRelativeTo(null); // Centrar
+        cargarPanelMapa();  
+        pack();              
+        setLocationRelativeTo(null); 
         setVisible(true);
-      
+        this.requestFocusInWindow(); 
     }
     
+    @Override 
     public void dispose() {
-        reproductor.detener(); // Detener la música antes de cerrar
-        super.dispose();       // Cerrar la ventana normalmente
+        reproductor.detener(); 
+        super.dispose();       
     }
     
-    public void actualizarListaJugadores(List<String> jugadores) {
-        System.out.println("🎯 Recibí jugadores: " + jugadores);
+    public void actualizarListaJugadores(List<String> jugadoresNombres) {
+        System.out.println("🎯 Recibí jugadores para ComboBox: " + jugadoresNombres);
         comboElegir.removeAllItems();
-        comboElegir.addItem("ALL"); // para mensajes públicos
+        comboElegir.addItem("ALL"); 
 
-        for (String jugador : jugadores) {
-            if (!jugador.equals(nombreJugador)) {
-                comboElegir.addItem(jugador);
+        for (String jugadorNombre : jugadoresNombres) {
+            if (!jugadorNombre.equals(nombreJugador)) {
+                comboElegir.addItem(jugadorNombre);
             }
         }
     }
+
+  
+    public void actualizarPosicionesJugadores(List<Jugador> nuevosJugadores) {
+        this.jugadores = nuevosJugadores;
+        SwingUtilities.invokeLater(this::repaintMapa);
+    }
+
 
     /**
      * This method is called from within the constructor to initialize the form.
@@ -131,6 +154,11 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
         btnSalir = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        addKeyListener(new java.awt.event.KeyAdapter() {
+            public void keyPressed(java.awt.event.KeyEvent evt) {
+                formKeyPressed(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -169,6 +197,11 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
         });
 
         btnSalir.setText("Salir");
+        btnSalir.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnSalirActionPerformed(evt);
+            }
+        });
 
         jLayeredPane1.setLayer(jPanel1, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(jScrollPane1, javax.swing.JLayeredPane.DEFAULT_LAYER);
@@ -255,7 +288,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
                 txtSms.append("[Error] No se pudo enviar el mensaje público\n");
             }
         }
-        // TODO add your handling code here:
+        this.requestFocusInWindow(); // Devolver foco
     }//GEN-LAST:event_btnEnviarPublicoActionPerformed
 
     private void btnEnviarPrivadoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEnviarPrivadoActionPerformed
@@ -278,12 +311,24 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
                 txtSms.append("[Error] No se pudo enviar el mensaje privado\n");
             }
         }
+        this.requestFocusInWindow(); // Devolver foco
     }//GEN-LAST:event_btnEnviarPrivadoActionPerformed
 
     private void comboElegirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_comboElegirActionPerformed
-        
-            // TODO add your handling code here:
+        this.requestFocusInWindow(); // Devolver foco
     }//GEN-LAST:event_comboElegirActionPerformed
+
+
+    private void formKeyPressed(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_formKeyPressed
+  
+        keyPressed(evt); 
+    }//GEN-LAST:event_formKeyPressed
+
+    private void btnSalirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSalirActionPerformed
+
+        this.dispose(); 
+
+    }//GEN-LAST:event_btnSalirActionPerformed
 
     /**
      * @param args the command line arguments
@@ -335,10 +380,50 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes {
 
     @Override
     public void recibirMensaje(Mensaje mensaje) {
-        txtSms.append(mensaje.getEnviador() + ": " + mensaje.getContenido().toString()     + "\n");
+        
+        SwingUtilities.invokeLater(() -> {
+            if (mensaje.getTipo() == TipoMensaje.PUBLICO || mensaje.getTipo() == TipoMensaje.PRIVADO) {
+                txtSms.append(mensaje.getEnviador() + ": " + mensaje.getContenido().toString() + "\n");
+            } else {
+
+                 txtSms.append("[INFO] " + mensaje.toString() + "\n");
+            }
+        });
     }
     
-    
-}
-    
+    // --- Métodos KeyListener ---
+    @Override
+    public void keyTyped(KeyEvent e) {
 
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (salida == null) return; 
+
+        String direccion = null;
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_UP:    direccion = "UP";    break;
+            case KeyEvent.VK_DOWN:  direccion = "DOWN";  break;
+            case KeyEvent.VK_LEFT:  direccion = "LEFT";  break;
+            case KeyEvent.VK_RIGHT: direccion = "RIGHT"; break;
+        }
+
+        if (direccion != null) {
+            try {
+                System.out.println("Enviando movimiento: " + direccion + " para " + nombreJugador);
+                Mensaje msgMovimiento = new Mensaje(nombreJugador, direccion, "SERVER", TipoMensaje.MOVER);
+                salida.writeObject(msgMovimiento);
+                salida.flush(); 
+            } catch (IOException ex) {
+                txtSms.append("[Error] No se pudo enviar el movimiento: " + ex.getMessage() + "\n");
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+       
+    }
+}

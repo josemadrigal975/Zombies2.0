@@ -41,7 +41,7 @@ public class Mapas extends JPanel {
         imgMuro = cargarImagen("/Imagenes/muroo.jpg");
         imgPiso = cargarImagen("/Imagenes/piso.jpeg");
         imgZombie = cargarImagen("/Imagenes/zombie.jpg");
-        imgJugador = cargarImagen("/Imagenes/jugador.jpg");
+        imgJugador = cargarImagen("/Imagenes/jugadora.jpg");
         imgSalida = cargarImagen("/Imagenes/salida.jpeg");
     }
 

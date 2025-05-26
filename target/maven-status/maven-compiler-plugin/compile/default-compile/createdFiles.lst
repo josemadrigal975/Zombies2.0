@@ -3,12 +3,14 @@ Cliente\ZonaJuego$1.class
 com\mycompany\zombiesmultiplayer\ZombiesMultiplayer.class
 Cliente\PantallaLobby$1.class
 Server\ThreadServidor$1.class
+Cliente\EscuchaServidorThread$1.class
 Cliente\ReceptorMensajes.class
 Cliente\PantallaLobby$4.class
 Cliente\PantallaLobby$7.class
 Server\PantallaServidor$1.class
 Cliente\Pantalla.class
 Cliente\EscuchaServidorThread.class
+Cliente\ZonaJuego$5.class
 Cliente\ZonaJuego$2.class
 Server\Servidor.class
 Server\PantallaServidor$2.class
@@ -16,6 +18,8 @@ Cliente\PantallaLobby$3.class
 Cliente\ZonaJuego$3.class
 Modelos\Mensaje.class
 Cliente\Pantalla$1.class
+Personajes\Jugador.class
+Cliente\ZonaJuego$6.class
 Cliente\PantallaLobby$6.class
 Cliente\ClienteZombie.class
 Server\PantallaServidor.class
