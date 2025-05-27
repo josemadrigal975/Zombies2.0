@@ -12,9 +12,9 @@ public enum TipoMensaje {
     PUBLICO,
     PRIVADO,
     DISPARO,
-    MOVER,
+    MOVER, 
     INICIALIZAR,
     FINALIZAR_JUEGO,
-    ACTUALIZAR
+    ACTUALIZAR_JUGADORES, 
+    ACTUALIZAR_POSICIONES 
 }
-
