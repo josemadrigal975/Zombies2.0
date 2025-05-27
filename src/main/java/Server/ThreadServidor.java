@@ -1,26 +1,18 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package Server;
 
 import Modelos.Mensaje;
-import Modelos.TipoMensaje; 
+import Modelos.TipoMensaje;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
-/**
- *
- * @author jos_m
- */
 public class ThreadServidor extends Thread{
     public Socket socket;
     public ObjectOutputStream salida;
     private ObjectInputStream entrada;
-    private DataInputStream entradaDatos;
+    private DataInputStream entradaDatos; // Para el nombre inicial
     public String nombre;
     private Servidor server;
     private boolean isRunning = true;
@@ -29,33 +21,63 @@ public class ThreadServidor extends Thread{
         this.socket = socket;
         this.server = server;
         try {
-            
             salida = new ObjectOutputStream(socket.getOutputStream());
-            salida.flush(); // Enviar la cabecera del stream inmediatamente.
+            salida.flush(); 
+            // La creación de ObjectInputStream puede bloquear hasta que el otro extremo
+            // envíe la cabecera del stream (lo cual sucede con new ObjectOutputStream()).
+            // El cliente crea su OOS y luego su OIS. El servidor crea OOS y luego OIS.
+            // El cliente envía su nombre por DataOutputStream, luego el servidor puede leerlo.
+            // El problema puede surgir si ambos intentan crear OIS antes de que el otro cree OOS.
+            // Aquí, el DataInputStream para el nombre se crea DESPUÉS del OIS del servidor,
+            // y el OOS del servidor se crea ANTES del OIS del servidor.
             entrada = new ObjectInputStream(socket.getInputStream());
-            entradaDatos = new DataInputStream(socket.getInputStream()); // Se usa solo para el nombre inicial
+            // entradaDatos = new DataInputStream(socket.getInputStream()); // Esto es problemático si se crea después de OIS en el mismo socket.
+                                                                          // Es mejor usar el mismo OIS o un stream separado si es estrictamente necesario.
+                                                                          // Para simplicidad, el cliente enviará el nombre como un Mensaje normal
+                                                                          // o el servidor leerá el nombre del stream original de entrada.
+                                                                          // PERO, como el cliente lo envía por DataOutputStream, necesitamos DataInputStream.
+                                                                          // La clave es el orden de creación y uso.
+            // Corregido: DataInputStream DEBERÍA leer del InputStream ANTES de que ObjectInputStream lo "tome".
+            // Lo ideal sería que el cliente envíe el nombre primero y luego se establezcan los ObjectStreams.
+            // Como está, se crea el OOS/OIS y LUEGO el DataInputStream para leer del MISMO socket.getInputStream()
+            // que ya está usando OIS. Esto es propenso a errores.
+
+            // Solución más robusta: El cliente envía el nombre como un String UTF vía DataOutputStream.
+            // El servidor lo lee con DataInputStream antes de crear el ObjectInputStream.
+            // O, el cliente envía un Mensaje especial de LOGIN.
+            
+            // Para la estructura actual (cliente envía UTF con DataOutputStream primero):
+            // Creamos entradaDatos aquí, pero aseguramos que se use ANTES de que entrada.readObject()
+            // sea llamado extensivamente.
+            this.entradaDatos = new DataInputStream(socket.getInputStream());
+
+
         } catch (IOException ex) {
              System.err.println("Error al crear streams para " + (nombre != null ? nombre : "nuevo cliente") + ": " + ex.getMessage());
-             isRunning = false; 
+             isRunning = false;
         }
     }
 
     @Override
     public void run() {
         try {
-            nombre = entradaDatos.readUTF(); // Leer nombre primero
-            server.pantalla.write("Recibido nombre: " + nombre);
+            // Leer el nombre enviado por el cliente a través de DataOutputStream
+            nombre = entradaDatos.readUTF(); 
+            server.pantalla.write("ThreadServidor: Recibido nombre: " + nombre + " de " + socket.getInetAddress());
             server.registrarJugador(nombre); 
-          
         } catch (IOException ex) {
-            server.pantalla.write("Error al leer nombre o registrar jugador: " + ex.getMessage());
-            isRunning = false; // No se puede continuar
+            server.pantalla.write("ThreadServidor: Error al leer nombre o registrar jugador para " + socket.getInetAddress() + ": " + ex.getMessage());
+            isRunning = false; 
         }
 
         while (isRunning) {
             try {
-                Mensaje mensaje = (Mensaje) entrada.readObject();
-                server.pantalla.write("Recibido de " + nombre + ": " + mensaje);
+                Mensaje mensaje = (Mensaje) entrada.readObject(); // Ahora OIS puede tomar control del stream
+                
+                // Loguear mensajes excepto las actualizaciones de estado que son muy frecuentes
+                if (mensaje.getTipo() != TipoMensaje.ACTUALIZAR_ESTADO_JUEGO) {
+                    server.pantalla.write("ThreadServidor (" + nombre + ") Recibido: " + mensaje.getTipo() + " Contenido: " + mensaje.getContenido());
+                }
 
                 switch (mensaje.getTipo()) {
                     case PUBLICO:
@@ -65,26 +87,38 @@ public class ThreadServidor extends Thread{
                         server.privateMessage(mensaje);
                         break;
                     case DISPARO: 
-                        server.broadcoast(mensaje); 
+                        // server.procesarDisparo(mensaje); // Implementar lógica de disparo
                         break;
                     case MOVER: 
+                        // server.pantalla.write("ThreadServidor (" + nombre + ") DELEGANDO MOVIMIENTO: " + mensaje.getContenido()); // Log más específico en Servidor.procesarMovimiento
                         server.procesarMovimiento(mensaje);
                         break;
+                    // Otros tipos de mensajes que el servidor deba manejar directamente del cliente
+                    // Por ejemplo, un mensaje de "listo para empezar" si el lobby lo requiere.
                     default:
-                        server.pantalla.write("Tipo de mensaje no manejado de " + nombre + ": " + mensaje.getTipo());
+                        server.pantalla.write("Tipo de mensaje no manejado directamente por ThreadServidor (" + nombre + "): " + mensaje.getTipo());
                 }
-            } catch (IOException | ClassNotFoundException ex) {
-                server.pantalla.write("Cliente " + nombre + " desconectado inesperadamente: " + ex.getMessage());
+            } catch (java.io.EOFException e) {
+                server.pantalla.write("Cliente " + nombre + " cerró la conexión (EOF).");
                 isRunning = false;
-              
+            } catch (java.net.SocketException e) {
+                 server.pantalla.write("Cliente " + nombre + " desconectado (SocketException): " + e.getMessage());
+                 isRunning = false;
+            }
+            catch (IOException | ClassNotFoundException ex) {
+                if (isRunning) { // Solo si no se detuvo intencionalmente
+                    server.pantalla.write("Error de comunicación con cliente " + nombre + ": " + ex.getMessage());
+                    // ex.printStackTrace(); // Para debug detallado
+                }
+                isRunning = false;
             }
         }
         
-        // Limpieza cuando el bucle termina (por error o desconexión)
-        server.eliminarCliente(this);
+        server.eliminarCliente(this); // Asegurar limpieza
         try {
             if (salida != null) salida.close();
             if (entrada != null) entrada.close();
+            if (entradaDatos != null) entradaDatos.close();
             if (socket != null && !socket.isClosed()) socket.close();
         } catch (IOException ex) {
             server.pantalla.write("Error al cerrar recursos para " + nombre + ": " + ex.getMessage());

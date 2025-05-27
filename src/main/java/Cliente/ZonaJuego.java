@@ -1,54 +1,46 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/GUIForms/JFrame.java to edit this template
- */
 package Cliente;
 
 import Mapas.Mapas;
 import Mapas.cargarMapas;
 import Personajes.Jugador;
+import Personajes.Zombie;
 import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import Sonidos.ReproductorAudio;
 import java.awt.Dimension;
-import java.awt.event.KeyEvent; // << NUEVO
-import java.awt.event.KeyListener; // << NUEVO
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Collections; // Para Collections.emptyList()
 import java.util.List;
 import javax.swing.SwingUtilities;
 
-/**
- *
- * @author jos_m
- */
-public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, KeyListener { // << MODIFICADO
+public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, KeyListener {
     private String nombreJugador;
     private ReproductorAudio reproductor = new ReproductorAudio();
     private ObjectOutputStream salida;
     private ObjectInputStream entrada;
     private List<Jugador> jugadores = new ArrayList<>();
-    private Mapas panelMapaActual; // << NUEVO: Referencia al panel del mapa
-    private char[][] definicionMapa; // << NUEVO: Para recargar el mapa base
+    private List<Zombie> zombies = new ArrayList<>();
+    private Mapas panelMapaActual;
+    private char[][] definicionMapa;
 
-    /**
-     * Creates new form ZonaJuego
-     */
     public ZonaJuego() {
         initComponents();
         reproductor.reproducir("/Sonidos/musica.wav");
         txtSms.setEditable(false);
 
-        // Para eventos de teclado
         this.addKeyListener(this);
-        this.setFocusable(true);   
-        this.requestFocusInWindow(); 
+        this.setFocusable(true);
+        // No llamar a requestFocusInWindow() aquí, hacerlo en initData después de setVisible(true)
     }
     
     public void cargarPanelMapa() {
-        definicionMapa = cargarMapas.cargarMapaDesdeArchivo("mapa1.txt"); 
+        System.out.println("CLIENTE ZonaJuego: Cargando panel del mapa...");
+        definicionMapa = cargarMapas.cargarMapaDesdeArchivo("mapa1.txt");
         panelMapaActual = new Mapas(definicionMapa);
 
         Dimension dim = panelMapaActual.getPreferredSize();
@@ -57,42 +49,59 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jPanel1.setSize(dim);
 
         panelMapaActual.setBounds(0, 0, dim.width, dim.height);
-        // panelMapaActual.setBorder(javax.swing.BorderFactory.createLineBorder(java.awt.Color.RED, 2)); 
 
         jPanel1.removeAll();
         jPanel1.add(panelMapaActual);
         jPanel1.revalidate();
         jPanel1.repaint();
+        System.out.println("CLIENTE ZonaJuego: Panel del mapa cargado y añadido.");
     }
     
-    public void setJugadores(List<Jugador> jugadores) {
-        this.jugadores = jugadores;
-       
+    // setJugadoresInterno y setZombiesInterno ya no son necesarios con la nueva forma de actualizar listas.
+
+    public void actualizarEstadoJuego(List<Jugador> nuevosJugadores, List<Zombie> nuevosZombies) {
+        System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - Jugadores recibidos: " + (nuevosJugadores != null ? nuevosJugadores.size() : "null") + 
+                           ", Zombies: " + (nuevosZombies != null ? nuevosZombies.size() : "null"));
+        if (nuevosJugadores != null && !nuevosJugadores.isEmpty()) {
+            Jugador j = nuevosJugadores.get(0); // Asumimos que al menos hay un jugador si la lista no es vacía
+            // Solo loguear si el jugador es el propio cliente para no spamear por otros
+            if (j.getNombre().equals(this.nombreJugador)) {
+                System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - Mi jugador ("+j.getNombre()+") en DTO: (" + j.getX() + "," + j.getY() + "), Salud: " + j.getSalud());
+            }
+        }
+
+        // Reemplazar las listas internas con nuevas copias de las listas recibidas
+        this.jugadores = new ArrayList<>(nuevosJugadores != null ? nuevosJugadores : Collections.emptyList());
+        this.zombies = new ArrayList<>(nuevosZombies != null ? nuevosZombies : Collections.emptyList());
+        
+        // System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - this.jugadores actualizado, size: " + this.jugadores.size());
+        // if (!this.jugadores.isEmpty() && this.jugadores.get(0).getNombre().equals(this.nombreJugador)){
+        //     System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - Mi jugador en this.jugadores: " + this.jugadores.get(0).getNombre() + 
+        //                        " en (" + this.jugadores.get(0).getX() + "," + this.jugadores.get(0).getY() + ")");
+        // }
+
         SwingUtilities.invokeLater(this::repaintMapa);
     }
 
     public void repaintMapa() {
-        if (panelMapaActual == null) { 
-            cargarPanelMapa(); // Esto crea panelMapaActual
+        if (panelMapaActual == null) {
+            System.out.println("CLIENTE ZonaJuego.repaintMapa: panelMapaActual es null, llamando a cargarPanelMapa.");
+            cargarPanelMapa();
         }
+        
+        // System.out.println("CLIENTE ZonaJuego.repaintMapa: Pasando jugadores (" + this.jugadores.size() + ") y zombies (" + this.zombies.size() + ") al panel del mapa.");
+        // if (!this.jugadores.isEmpty() && this.jugadores.get(0).getNombre().equals(this.nombreJugador)){
+        //     System.out.println("CLIENTE ZonaJuego.repaintMapa - Mi jugador en this.jugadores ANTES de setJugadores: " + this.jugadores.get(0).getNombre() + 
+        //                        " en (" + this.jugadores.get(0).getX() + "," + this.jugadores.get(0).getY() + ")");
+        // }
 
-        panelMapaActual = new Mapas(definicionMapa); 
         panelMapaActual.setJugadores(this.jugadores); 
+        panelMapaActual.setZombies(this.zombies);
 
-        Dimension dim = panelMapaActual.getPreferredSize();
-        panelMapaActual.setBounds(0, 0, dim.width, dim.height);
-        
-        jPanel1.removeAll();
-        jPanel1.add(panelMapaActual);
+        // System.out.println("CLIENTE ZonaJuego.repaintMapa: Llamando a revalidate y repaint en jPanel1.");
         jPanel1.revalidate();
-        jPanel1.repaint();
-        
-        System.out.println("✅ Mapa repintado con " + jugadores.size() + " jugadores.");
-
-        this.requestFocusInWindow(); 
+        jPanel1.repaint();    
     }
-
-
     
     public void initData(String nombreJugador, ObjectOutputStream salida, ObjectInputStream entrada) {
         this.nombreJugador = nombreJugador;
@@ -101,21 +110,32 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
 
         setTitle("Zona de juego de " + nombreJugador);
 
-        cargarPanelMapa();  
-        pack();              
-        setLocationRelativeTo(null); 
-        setVisible(true);
-        this.requestFocusInWindow(); 
+        cargarPanelMapa();
+        pack(); 
+        setLocationRelativeTo(null);
+        setVisible(true); 
+
+        SwingUtilities.invokeLater(() -> {
+            boolean focusObtenido = this.requestFocusInWindow();
+            if (!focusObtenido) {
+                System.err.println("CLIENTE ZonaJuego: ADVERTENCIA: ZonaJuego (JFrame) no pudo obtener el foco inicialmente.");
+            } else {
+                System.out.println("CLIENTE ZonaJuego: ZonaJuego (JFrame) obtuvo el foco inicial correctamente.");
+            }
+            // Adicionalmente, verificar si el panel principal tiene el foco si es necesario,
+            // aunque el KeyListener está en el JFrame.
+            // System.out.println("CLIENTE ZonaJuego: Foco en JFrame después de invokeLater: " + this.isFocusOwner());
+            // System.out.println("CLIENTE ZonaJuego: Componente con foco: " + (getFocusOwner() != null ? getFocusOwner().getClass().getSimpleName() : "null"));
+        });
     }
     
-    @Override 
+    @Override
     public void dispose() {
         reproductor.detener(); 
         super.dispose();       
     }
     
     public void actualizarListaJugadores(List<String> jugadoresNombres) {
-        System.out.println("🎯 Recibí jugadores para ComboBox: " + jugadoresNombres);
         comboElegir.removeAllItems();
         comboElegir.addItem("ALL"); 
 
@@ -126,18 +146,6 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         }
     }
 
-  
-    public void actualizarPosicionesJugadores(List<Jugador> nuevosJugadores) {
-        this.jugadores = nuevosJugadores;
-        SwingUtilities.invokeLater(this::repaintMapa);
-    }
-
-
-    /**
-     * This method is called from within the constructor to initialize the form.
-     * WARNING: Do NOT modify this code. The content of this method is always
-     * regenerated by the Form Editor.
-     */
     @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
     private void initComponents() {
@@ -182,7 +190,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             }
         });
 
-        comboElegir.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
+        comboElegir.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "ALL" }));
         comboElegir.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 comboElegirActionPerformed(evt);
@@ -217,49 +225,42 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jLayeredPane1Layout.setHorizontalGroup(
             jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                .addGap(66, 66, 66)
+                .addGap(20, 20, 20)
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                    .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                        .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(btnEnviarPrivado, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                        .addComponent(txtPrivado))
-                    .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                        .addComponent(btnSalir)
-                        .addGap(80, 80, 80)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 18, Short.MAX_VALUE)
+                .addGap(18, 18, 18)
                 .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                        .addComponent(jScrollPane1)
-                        .addComponent(txtPublico))
-                    .addComponent(btnEnviarPublico))
-                .addGap(25, 25, 25))
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 350, Short.MAX_VALUE)
+                        .addComponent(txtPublico)
+                        .addComponent(btnEnviarPublico, javax.swing.GroupLayout.PREFERRED_SIZE, 200, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(btnEnviarPrivado, javax.swing.GroupLayout.DEFAULT_SIZE, 200, Short.MAX_VALUE)
+                        .addComponent(txtPrivado))
+                    .addComponent(btnSalir, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addContainerGap(20, Short.MAX_VALUE))
         );
         jLayeredPane1Layout.setVerticalGroup(
             jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                .addGap(37, 37, 37)
-                .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(20, 20, 20)
+                .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                        .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 220, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addGap(33, 33, 33))
-                            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jLayeredPane1Layout.createSequentialGroup()
-                                .addComponent(btnSalir)
-                                .addGap(18, 18, 18)
-                                .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                                .addGap(15, 15, 15)))
-                        .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(txtPrivado, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                            .addComponent(txtPublico, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                        .addGap(19, 19, 19)
-                        .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                            .addComponent(btnEnviarPrivado)
-                            .addComponent(btnEnviarPublico))))
-                .addContainerGap(46, Short.MAX_VALUE))
+                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(txtPublico, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(btnEnviarPublico)
+                        .addGap(18, 18, 18)
+                        .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(txtPrivado, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(btnEnviarPrivado)))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                .addComponent(btnSalir)
+                .addContainerGap(20, Short.MAX_VALUE))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -282,82 +283,51 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             try {
                 Mensaje mensaje = new Mensaje(nombreJugador, texto, "ALL", TipoMensaje.PUBLICO);
                 salida.writeObject(mensaje);
-                txtSms.append(nombreJugador + ": " + texto + "\n");
                 txtPublico.setText("");
             } catch (IOException e) {
                 txtSms.append("[Error] No se pudo enviar el mensaje público\n");
             }
         }
-        this.requestFocusInWindow(); // Devolver foco
+        this.requestFocusInWindow(); 
     }//GEN-LAST:event_btnEnviarPublicoActionPerformed
 
     private void btnEnviarPrivadoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEnviarPrivadoActionPerformed
         String texto = txtPrivado.getText().trim();
-        String receptor = comboElegir.getSelectedItem().toString();
+        Object selectedItem = comboElegir.getSelectedItem();
+        
+        if (selectedItem == null) {
+            txtSms.append("[Error] Ningún destinatario seleccionado.\n");
+            this.requestFocusInWindow();
+            return;
+        }
+        String receptor = selectedItem.toString();
 
-        if (!texto.isBlank() && receptor != null) {
+        if (!texto.isBlank()) {
             try {
                 TipoMensaje tipo = receptor.equals("ALL") ? TipoMensaje.PUBLICO : TipoMensaje.PRIVADO;
                 Mensaje mensaje = new Mensaje(nombreJugador, texto, receptor, tipo);
                 salida.writeObject(mensaje);
-
-                if (tipo == TipoMensaje.PRIVADO) {
-                    txtSms.append("[Privado a " + receptor + "] " + texto + "\n");
-                } else {
-                    txtSms.append(nombreJugador + ": " + texto + "\n");
-                }
                 txtPrivado.setText("");
             } catch (IOException e) {
                 txtSms.append("[Error] No se pudo enviar el mensaje privado\n");
             }
         }
-        this.requestFocusInWindow(); // Devolver foco
+        this.requestFocusInWindow(); 
     }//GEN-LAST:event_btnEnviarPrivadoActionPerformed
 
     private void comboElegirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_comboElegirActionPerformed
-        this.requestFocusInWindow(); // Devolver foco
+        this.requestFocusInWindow(); 
     }//GEN-LAST:event_comboElegirActionPerformed
 
-
     private void formKeyPressed(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_formKeyPressed
-  
         keyPressed(evt); 
     }//GEN-LAST:event_formKeyPressed
 
     private void btnSalirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSalirActionPerformed
-
-        this.dispose(); 
-
+        this.dispose();
     }//GEN-LAST:event_btnSalirActionPerformed
 
-    /**
-     * @param args the command line arguments
-     */
     public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
-        /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
-         */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
-        } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(ZonaJuego.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(ZonaJuego.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(ZonaJuego.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(ZonaJuego.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        }
-        //</editor-fold>
-
-        /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
             public void run() {
                 new ZonaJuego().setVisible(true);
@@ -380,26 +350,47 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
 
     @Override
     public void recibirMensaje(Mensaje mensaje) {
-        
         SwingUtilities.invokeLater(() -> {
-            if (mensaje.getTipo() == TipoMensaje.PUBLICO || mensaje.getTipo() == TipoMensaje.PRIVADO) {
+            if (mensaje.getTipo() == TipoMensaje.PUBLICO) {
                 txtSms.append(mensaje.getEnviador() + ": " + mensaje.getContenido().toString() + "\n");
-            } else {
-
-                 txtSms.append("[INFO] " + mensaje.toString() + "\n");
+            } else if (mensaje.getTipo() == TipoMensaje.PRIVADO) {
+                 txtSms.append("[Privado de " + mensaje.getEnviador() + "] " + mensaje.getContenido().toString() + "\n");
+            } else if (mensaje.getContenido() != null) {
+                 String contenidoStr = mensaje.getContenido().toString();
+                 if (contenidoStr.contains("Desconectado") || contenidoStr.contains("Conexión perdida") || contenidoStr.contains("Error de comunicación")) {
+                    txtSms.append("[" + mensaje.getEnviador() + "] " + contenidoStr + "\n");
+                 }
             }
         });
     }
     
-    // --- Métodos KeyListener ---
     @Override
     public void keyTyped(KeyEvent e) {
-
+        // No se usa
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
-        if (salida == null) return; 
+        System.out.println("CLIENTE ZonaJuego keyPressed: " + KeyEvent.getKeyText(e.getKeyCode()) + 
+                           ", Foco en JFrame: " + this.isFocusOwner() +
+                           ", Componente con foco: " + (getFocusOwner() != null ? getFocusOwner().getClass().getSimpleName() : "null"));
+
+        if (txtPublico.hasFocus() || txtPrivado.hasFocus()) {
+            System.out.println("CLIENTE ZonaJuego: Foco en campo de texto, ignorando tecla de juego: " + KeyEvent.getKeyText(e.getKeyCode()));
+            if (e.getKeyCode() == KeyEvent.VK_ENTER) {
+                if (txtPublico.hasFocus()) {
+                    btnEnviarPublico.doClick();
+                } else if (txtPrivado.hasFocus()) {
+                    btnEnviarPrivado.doClick();
+                }
+            }
+            return; 
+        }
+
+        if (salida == null) {
+            System.out.println("CLIENTE ZonaJuego: Salida es null, no se puede enviar movimiento.");
+            return;
+        }
 
         String direccion = null;
         switch (e.getKeyCode()) {
@@ -410,20 +401,19 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         }
 
         if (direccion != null) {
+            System.out.println("CLIENTE ZonaJuego: Intentando enviar movimiento: " + direccion + " para " + nombreJugador);
             try {
-                System.out.println("Enviando movimiento: " + direccion + " para " + nombreJugador);
                 Mensaje msgMovimiento = new Mensaje(nombreJugador, direccion, "SERVER", TipoMensaje.MOVER);
                 salida.writeObject(msgMovimiento);
-                salida.flush(); 
+                salida.flush();
             } catch (IOException ex) {
                 txtSms.append("[Error] No se pudo enviar el movimiento: " + ex.getMessage() + "\n");
-                ex.printStackTrace();
             }
         }
     }
 
     @Override
     public void keyReleased(KeyEvent e) {
-       
+        // No se usa
     }
 }
