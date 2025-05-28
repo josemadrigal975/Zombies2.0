@@ -16,6 +16,7 @@ import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Collections; // Para Collections.emptyList()
 import java.util.List;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.SwingUtilities;
 
 public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, KeyListener {
@@ -27,6 +28,13 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     private List<Zombie> zombies = new ArrayList<>();
     private Mapas panelMapaActual;
     private char[][] definicionMapa;
+    private boolean controlesActivos = true;
+    private String nombreMapaActual;
+    private long tiempoInicio;
+    private javax.swing.Timer timer;
+    private EscuchaServidorThread escucha;
+
+    
 
     public ZonaJuego() {
         initComponents();
@@ -38,10 +46,29 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         // No llamar a requestFocusInWindow() aquí, hacerlo en initData después de setVisible(true)
     }
     
-    public void cargarPanelMapa() {
+    public void iniciarCronometro() {
+        tiempoInicio = System.currentTimeMillis();
+        timer = new javax.swing.Timer(1000, e -> actualizarLabelTiempo());
+        timer.start();
+    }
+    
+        private void actualizarLabelTiempo() {
+        long tiempoActual = System.currentTimeMillis();
+        long totalSegundos = (tiempoActual - tiempoInicio) / 1000;
+
+        long minutos = totalSegundos / 60;
+        long segundos = totalSegundos % 60;
+
+        String tiempoFormateado = String.format("%02d:%02d", minutos, segundos);
+        lblTiempo.setText(tiempoFormateado);
+    }
+
+
+    
+    public void cargarPanelMapa(String nombreArchivoMapa) {
         System.out.println("CLIENTE ZonaJuego: Cargando panel del mapa...");
-        definicionMapa = cargarMapas.cargarMapaDesdeArchivo("mapa1.txt");
-        panelMapaActual = new Mapas(definicionMapa);
+        this.definicionMapa = cargarMapas.cargarMapaDesdeArchivo(nombreArchivoMapa);
+        this.panelMapaActual = new Mapas(definicionMapa);
 
         Dimension dim = panelMapaActual.getPreferredSize();
         jPanel1.setLayout(null);
@@ -86,7 +113,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     public void repaintMapa() {
         if (panelMapaActual == null) {
             System.out.println("CLIENTE ZonaJuego.repaintMapa: panelMapaActual es null, llamando a cargarPanelMapa.");
-            cargarPanelMapa();
+            return;
         }
         
         // System.out.println("CLIENTE ZonaJuego.repaintMapa: Pasando jugadores (" + this.jugadores.size() + ") y zombies (" + this.zombies.size() + ") al panel del mapa.");
@@ -103,14 +130,16 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jPanel1.repaint();    
     }
     
-    public void initData(String nombreJugador, ObjectOutputStream salida, ObjectInputStream entrada) {
+    public void initData(String nombreJugador, ObjectOutputStream salida, ObjectInputStream entrada, String nombreMapa, EscuchaServidorThread escucha) {
         this.nombreJugador = nombreJugador;
         this.salida = salida;
         this.entrada = entrada;
+        this.nombreMapaActual = nombreMapa;
+        this.escucha = escucha;
 
         setTitle("Zona de juego de " + nombreJugador);
 
-        cargarPanelMapa();
+        cargarPanelMapa(nombreMapa);
         pack(); 
         setLocationRelativeTo(null);
         setVisible(true); 
@@ -135,15 +164,30 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         super.dispose();       
     }
     
+    public void desactivarControles() {
+    this.controlesActivos = false;
+    }
+
+    public void activarControles() {
+        this.controlesActivos = true;
+    }
+    
+    public void actualizarTiempoPartida(long segundos) {
+        lblTiempo.setText("Tiempo: " + segundos + "s");
+    }
+
+
+    
     public void actualizarListaJugadores(List<String> jugadoresNombres) {
-        comboElegir.removeAllItems();
-        comboElegir.addItem("ALL"); 
+        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+        model.addElement("ALL");
 
         for (String jugadorNombre : jugadoresNombres) {
-            if (!jugadorNombre.equals(nombreJugador)) {
-                comboElegir.addItem(jugadorNombre);
+            if (!jugadorNombre.trim().equalsIgnoreCase(nombreJugador.trim())) {
+                model.addElement(jugadorNombre);
             }
         }
+        comboElegir.setModel(model);
     }
 
     @SuppressWarnings("unchecked")
@@ -160,13 +204,9 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         btnEnviarPrivado = new javax.swing.JButton();
         txtPrivado = new javax.swing.JTextField();
         btnSalir = new javax.swing.JButton();
+        lblTiempo = new javax.swing.JLabel();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-        addKeyListener(new java.awt.event.KeyAdapter() {
-            public void keyPressed(java.awt.event.KeyEvent evt) {
-                formKeyPressed(evt);
-            }
-        });
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -190,7 +230,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             }
         });
 
-        comboElegir.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "ALL" }));
+        comboElegir.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Item 1", "Item 2", "Item 3", "Item 4" }));
         comboElegir.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 comboElegirActionPerformed(evt);
@@ -211,6 +251,9 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             }
         });
 
+        lblTiempo.setFont(new java.awt.Font("Papyrus", 3, 24)); // NOI18N
+        lblTiempo.setText("00:00");
+
         jLayeredPane1.setLayer(jPanel1, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(jScrollPane1, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(btnEnviarPublico, javax.swing.JLayeredPane.DEFAULT_LAYER);
@@ -219,48 +262,60 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jLayeredPane1.setLayer(btnEnviarPrivado, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(txtPrivado, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(btnSalir, javax.swing.JLayeredPane.DEFAULT_LAYER);
+        jLayeredPane1.setLayer(lblTiempo, javax.swing.JLayeredPane.DEFAULT_LAYER);
 
         javax.swing.GroupLayout jLayeredPane1Layout = new javax.swing.GroupLayout(jLayeredPane1);
         jLayeredPane1.setLayout(jLayeredPane1Layout);
         jLayeredPane1Layout.setHorizontalGroup(
             jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                .addGap(20, 20, 20)
+                .addGap(66, 66, 66)
                 .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(18, 18, 18)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                        .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(btnEnviarPrivado, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(txtPrivado))
+                    .addGroup(jLayeredPane1Layout.createSequentialGroup()
+                        .addComponent(btnSalir)
+                        .addGap(80, 80, 80))
+                    .addComponent(lblTiempo, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.PREFERRED_SIZE, 109, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 18, Short.MAX_VALUE)
                 .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                        .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 350, Short.MAX_VALUE)
-                        .addComponent(txtPublico)
-                        .addComponent(btnEnviarPublico, javax.swing.GroupLayout.PREFERRED_SIZE, 200, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                        .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(btnEnviarPrivado, javax.swing.GroupLayout.DEFAULT_SIZE, 200, Short.MAX_VALUE)
-                        .addComponent(txtPrivado))
-                    .addComponent(btnSalir, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addContainerGap(20, Short.MAX_VALUE))
+                        .addComponent(jScrollPane1)
+                        .addComponent(txtPublico))
+                    .addComponent(btnEnviarPublico))
+                .addGap(25, 25, 25))
         );
         jLayeredPane1Layout.setVerticalGroup(
             jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                .addGap(20, 20, 20)
-                .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addGap(37, 37, 37)
+                .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jPanel1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addGroup(jLayeredPane1Layout.createSequentialGroup()
-                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 150, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(txtPublico, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(btnEnviarPublico)
-                        .addGap(18, 18, 18)
-                        .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(txtPrivado, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(btnEnviarPrivado)))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(btnSalir)
-                .addContainerGap(20, Short.MAX_VALUE))
+                        .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                            .addGroup(jLayeredPane1Layout.createSequentialGroup()
+                                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 220, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(33, 33, 33))
+                            .addGroup(jLayeredPane1Layout.createSequentialGroup()
+                                .addGap(11, 11, 11)
+                                .addComponent(lblTiempo, javax.swing.GroupLayout.PREFERRED_SIZE, 24, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addComponent(btnSalir)
+                                .addGap(18, 18, 18)
+                                .addComponent(comboElegir, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(15, 15, 15)))
+                        .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(txtPrivado, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                            .addComponent(txtPublico, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addGap(19, 19, 19)
+                        .addGroup(jLayeredPane1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                            .addComponent(btnEnviarPrivado)
+                            .addComponent(btnEnviarPublico))))
+                .addContainerGap(46, Short.MAX_VALUE))
         );
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
@@ -307,6 +362,12 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
                 TipoMensaje tipo = receptor.equals("ALL") ? TipoMensaje.PUBLICO : TipoMensaje.PRIVADO;
                 Mensaje mensaje = new Mensaje(nombreJugador, texto, receptor, tipo);
                 salida.writeObject(mensaje);
+
+                // Mostrar mensaje local
+                if (tipo == TipoMensaje.PRIVADO) {
+                    txtSms.append("[Yo → " + receptor + "] " + texto + "\n");
+                }
+
                 txtPrivado.setText("");
             } catch (IOException e) {
                 txtSms.append("[Error] No se pudo enviar el mensaje privado\n");
@@ -324,7 +385,23 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     }//GEN-LAST:event_formKeyPressed
 
     private void btnSalirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSalirActionPerformed
-        this.dispose();
+        try {
+            // Notificar al servidor
+            Mensaje mensaje = new Mensaje(nombreJugador, "SALIR_PARTIDA", "SERVIDOR", TipoMensaje.CONTROL);
+            salida.writeObject(mensaje);
+            salida.flush();
+
+            // Cerrar juego y volver a lobby
+            this.dispose();
+            PantallaLobby lobby = new PantallaLobby();
+            lobby.initData(nombreJugador, salida, entrada, escucha);
+            lobby.setVisible(true); 
+            escucha.setReceptor(lobby);
+            lobby.bloquearIngreso();
+
+        } catch (IOException e) {
+            System.err.println("Error al salir del juego: " + e.getMessage());
+        }
     }//GEN-LAST:event_btnSalirActionPerformed
 
     public static void main(String args[]) {
@@ -343,6 +420,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     private javax.swing.JLayeredPane jLayeredPane1;
     private javax.swing.JPanel jPanel1;
     private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JLabel lblTiempo;
     private javax.swing.JTextField txtPrivado;
     private javax.swing.JTextField txtPublico;
     private javax.swing.JTextArea txtSms;
@@ -400,6 +478,11 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             case KeyEvent.VK_RIGHT: direccion = "RIGHT"; break;
         }
 
+        if (!controlesActivos) {
+        System.out.println("CLIENTE ZonaJuego: Teclas desactivadas, no se enviará movimiento.");
+        return;
+        }
+
         if (direccion != null) {
             System.out.println("CLIENTE ZonaJuego: Intentando enviar movimiento: " + direccion + " para " + nombreJugador);
             try {
@@ -416,4 +499,16 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     public void keyReleased(KeyEvent e) {
         // No se usa
     }
+    
+    public void iniciarJuego() {
+        controlesActivos = true;
+        if (timer != null) timer.stop(); // por si venías de otro nivel
+        iniciarCronometro();
+    }
+    
+    public String getNombreJugador() {
+        return nombreJugador;
+    }
+
+
 }

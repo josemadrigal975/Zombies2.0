@@ -4,6 +4,13 @@
  */
 package Server;
 
+import Modelos.Mensaje;
+import Modelos.TipoMensaje;
+import java.io.File;
+import java.io.IOException;
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
+
 /**
  *
  * @author jos_m
@@ -44,6 +51,7 @@ public class PantallaServidor extends javax.swing.JFrame {
         btnIniciarJuego = new javax.swing.JButton();
         btnFinalizar = new javax.swing.JButton();
         btnParar = new javax.swing.JButton();
+        btnMasMapas = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
 
@@ -59,8 +67,25 @@ public class PantallaServidor extends javax.swing.JFrame {
         });
 
         btnFinalizar.setText("Finalizar Juego");
+        btnFinalizar.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnFinalizarActionPerformed(evt);
+            }
+        });
 
         btnParar.setText("Parar Server");
+        btnParar.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnPararActionPerformed(evt);
+            }
+        });
+
+        btnMasMapas.setText("Agregar Mapas");
+        btnMasMapas.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnMasMapasActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -73,7 +98,8 @@ public class PantallaServidor extends javax.swing.JFrame {
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(btnIniciarJuego, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addComponent(btnFinalizar, javax.swing.GroupLayout.DEFAULT_SIZE, 112, Short.MAX_VALUE)
-                    .addComponent(btnParar, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addComponent(btnParar, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(btnMasMapas, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                 .addContainerGap(31, Short.MAX_VALUE))
         );
         layout.setVerticalGroup(
@@ -86,7 +112,9 @@ public class PantallaServidor extends javax.swing.JFrame {
                         .addGap(38, 38, 38)
                         .addComponent(btnFinalizar)
                         .addGap(33, 33, 33)
-                        .addComponent(btnParar))
+                        .addComponent(btnParar)
+                        .addGap(38, 38, 38)
+                        .addComponent(btnMasMapas))
                     .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 390, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addContainerGap(40, Short.MAX_VALUE))
         );
@@ -97,6 +125,78 @@ public class PantallaServidor extends javax.swing.JFrame {
     private void btnIniciarJuegoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnIniciarJuegoActionPerformed
         server.iniciarJuego();
     }//GEN-LAST:event_btnIniciarJuegoActionPerformed
+
+    private void btnMasMapasActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnMasMapasActionPerformed
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Seleccionar nuevo mapa (.txt)");
+
+        int resultado = fileChooser.showOpenDialog(this);
+        if (resultado == JFileChooser.APPROVE_OPTION) {
+            File archivoSeleccionado = fileChooser.getSelectedFile();
+
+            // Validar que sea un archivo .txt
+            if (!archivoSeleccionado.getName().toLowerCase().endsWith(".txt")) {
+                JOptionPane.showMessageDialog(this, "Solo se permiten archivos .txt", "Archivo inválido", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Copiar el mapa al proyecto
+            try {
+                server.copiarMapaAlProyecto(archivoSeleccionado);
+                JOptionPane.showMessageDialog(this, "Mapa agregado correctamente.", "Mapa agregado", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "Error al copiar el mapa: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+        // TODO add your handling code here:
+    }//GEN-LAST:event_btnMasMapasActionPerformed
+
+    private void btnFinalizarActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnFinalizarActionPerformed
+        // Reset interno del servidor
+        server.getJugadores().clear();
+        server.getZombies().clear();
+        server.getNombresEnEspera().clear();
+        server.setNivelActual(1);
+
+
+        // Enviar a clientes la orden de volver al Lobby
+        Mensaje volverLobby = new Mensaje("SERVIDOR", "VOLVER_LOBBY", "TODOS", TipoMensaje.VOLVER_LOBBY);
+        for (ThreadServidor cliente : server.getClientesAceptados()) {
+            try {
+                cliente.salida.writeObject(volverLobby);
+                cliente.salida.flush();
+            } catch (IOException e) {
+                System.err.println("Error al enviar VOLVER_LOBBY: " + e.getMessage());
+            }
+        }
+
+        // TODO add your handling code here:
+    }//GEN-LAST:event_btnFinalizarActionPerformed
+
+    private void btnPararActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPararActionPerformed
+        Mensaje cerrar = new Mensaje("SERVIDOR", "El servidor ha sido cerrado", "TODOS", TipoMensaje.FINALIZAR_JUEGO);
+
+        for (ThreadServidor cliente : server.getClientesAceptados()) {
+            try {
+                cliente.salida.writeObject(cerrar);
+                cliente.salida.flush();
+                cliente.socket.close(); // Desconecta al cliente
+            } catch (IOException e) {
+                System.err.println("Error cerrando cliente: " + e.getMessage());
+            }
+        }
+
+        try {
+            server.getServerSocket().close(); 
+            txtAreaServer.append("Servidor fuera");
+        } catch (IOException e) {
+            System.err.println("Error cerrando el servidor: " + e.getMessage());
+        }
+
+        
+        this.dispose();
+        System.exit(0);
+    }//GEN-LAST:event_btnPararActionPerformed
 
     /**
      * @param args the command line arguments
@@ -136,6 +236,7 @@ public class PantallaServidor extends javax.swing.JFrame {
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JButton btnFinalizar;
     private javax.swing.JButton btnIniciarJuego;
+    private javax.swing.JButton btnMasMapas;
     private javax.swing.JButton btnParar;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTextArea txtAreaServer;

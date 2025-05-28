@@ -2,6 +2,7 @@ package Server;
 
 import Modelos.Mensaje;
 import Modelos.TipoMensaje;
+import Personajes.Jugador;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -92,6 +93,31 @@ public class ThreadServidor extends Thread{
                     case MOVER: 
                         // server.pantalla.write("ThreadServidor (" + nombre + ") DELEGANDO MOVIMIENTO: " + mensaje.getContenido()); // Log más específico en Servidor.procesarMovimiento
                         server.procesarMovimiento(mensaje);
+                        break;
+                    case CONTROL:
+                        if (mensaje.getContenido() instanceof String comando) {
+                            switch (comando) {
+                                case "SALIR_PARTIDA":
+                                    Jugador jugador = server.getJugadores().get(mensaje.getEnviador());
+                                    if (jugador != null) {
+                                        jugador.setSalud(0); 
+                                    }
+
+                                    server.pantalla.write("Jugador " + mensaje.getEnviador() + " salió del juego (contado como muerto).");
+
+                                    String listaNombres = String.join(",", server.getJugadores().keySet());
+                                    Mensaje actualizar = new Mensaje("SERVIDOR", listaNombres, "TODOS", TipoMensaje.ACTUALIZAR_JUGADORES);
+                                    server.broadcoast(actualizar);
+                                    break;
+
+                                case "INICIAR_JUEGO":
+                                    // Este comando solo lo usan los clientes, no procesarlo acá
+                                    break;
+
+                                default:
+                                    server.pantalla.write("Comando CONTROL desconocido: " + comando);
+                            }
+                        }
                         break;
                     // Otros tipos de mensajes que el servidor deba manejar directamente del cliente
                     // Por ejemplo, un mensaje de "listo para empezar" si el lobby lo requiere.

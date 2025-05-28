@@ -15,6 +15,12 @@ public enum TipoMensaje {
     PRIVADO,
     DISPARO,
     MOVER,
+    LLEGO_META,
+    ACTIVAR_CONTROLES,
+    ACTUALIZAR_TIEMPO,
+    REINICIAR_JUEGO,
+    CONTROL,
+    VOLVER_LOBBY,
     INICIALIZAR, // Podría usarse para enviar el estado inicial completo, incluyendo zombies
     FINALIZAR_JUEGO,
     ACTUALIZAR_JUGADORES,    // Para la lista de nombres en el lobby/combobox

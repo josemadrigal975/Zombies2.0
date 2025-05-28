@@ -225,6 +225,10 @@ public class Zombie implements Serializable {
     }
 
     private void atacar(Jugador jugador) {
+        if (jugador.isLlegoMeta()) {
+        System.out.println("Zombie " + id + " intenta atacar a " + jugador.getNombre() + ", pero ya llegó a la salida. No se permite el daño.");
+        return; 
+        }
         System.out.println("Zombie " + id + " ataca a " + jugador.getNombre());
         jugador.recibirDano(DAMAGE); // Asumimos que Jugador tiene este método
     }

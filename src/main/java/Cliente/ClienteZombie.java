@@ -38,10 +38,10 @@ public class ClienteZombie {
             outUTF.writeUTF(nombre);
 
             lobby = new PantallaLobby();
-            escucha = new EscuchaServidorThread(entrada, lobby); // ✅ crear primero
-            escucha.start();                                     // ✅ iniciar
+            escucha = new EscuchaServidorThread(entrada, salida, lobby); 
+            escucha.start();                                     
 
-            lobby.initData(nombre, salida, entrada, escucha);    // ✅ pasar ya inicializado
+            lobby.initData(nombre, salida, entrada, escucha);    
             lobby.setVisible(true);
 
         } catch (IOException e) {

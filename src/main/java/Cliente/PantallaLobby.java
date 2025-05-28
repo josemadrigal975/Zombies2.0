@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.net.URL;
 import java.util.List;
+import javax.swing.JOptionPane;
 
 /**
  *
@@ -24,6 +25,8 @@ public class PantallaLobby extends javax.swing.JFrame implements ReceptorMensaje
     private ObjectOutputStream salida;
     private ObjectInputStream entrada;
     private EscuchaServidorThread escucha;
+    private String nombreMapa = "mapa1.txt";
+    private boolean puedeIngresar = true;
 
     
     /**
@@ -64,6 +67,19 @@ public class PantallaLobby extends javax.swing.JFrame implements ReceptorMensaje
 
         setTitle("Lobby de " + nombreJugador);
     }
+    
+    public void bloquearIngreso() {
+        puedeIngresar = false;
+        btnPartida.setEnabled(false);
+        areaChat.append("Ya saliste de la partida. Esperá el reinicio.");
+    }
+
+    public void habilitarIngreso() {
+        puedeIngresar = true;
+        btnPartida.setEnabled(true);
+        areaChat.append("Podés unirte a la nueva partida.");
+    }
+
 
 
     
@@ -81,6 +97,11 @@ public class PantallaLobby extends javax.swing.JFrame implements ReceptorMensaje
             }
         }
     }
+    
+    public void setNombreMapa(String nombreMapa) {
+        this.nombreMapa = nombreMapa;
+    }
+
 
     
     /**
@@ -301,9 +322,15 @@ public class PantallaLobby extends javax.swing.JFrame implements ReceptorMensaje
     }//GEN-LAST:event_btnSendPrivateActionPerformed
 
     private void btnPartidaActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPartidaActionPerformed
+        if (!puedeIngresar) {
+            JOptionPane.showMessageDialog(this, "Ya saliste de la partida. Esperá a que se reinicie para volver a unirte.");
+            return;
+        }
         ZonaJuego zona = new ZonaJuego();
-        zona.initData(nombreJugador, salida, entrada);
+        zona.initData(nombreJugador, salida, entrada, nombreMapa, escucha);
+        
         escucha.setReceptor(zona);
+        escucha.reenviarJugadores();
 
         zona.setVisible(true);
         this.dispose();

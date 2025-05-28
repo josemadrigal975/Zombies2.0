@@ -16,6 +16,9 @@ public class Jugador implements Serializable {
     public boolean vivo = true;
     public int salud = 100;
     public boolean francotirador = false;
+    private long tiempoEscape = 0;
+    private boolean notificadoLlegada = false;
+    private boolean llegoMeta = false;
 
     public Jugador(String nombre, int x, int y) {
         this.nombre = nombre;
@@ -45,6 +48,28 @@ public class Jugador implements Serializable {
             System.out.println("Jugador " + nombre + " ha muerto.");
             // Aquí podría enviarse un mensaje al servidor o el servidor detectar la muerte
         }
+    }
+    public long getTiempoEscape() {
+        return tiempoEscape;
+    }
+    
+    public void setTiempoEscape(long tiempoEscape) {
+        this.tiempoEscape = tiempoEscape;
+    }
+    
+    public boolean isNotificadoLlegada() {
+        return notificadoLlegada;
+    }
+    
+    public void setNotificadoLlegada(boolean notificadoLlegada) {
+        this.notificadoLlegada = notificadoLlegada;
+    }
+    public boolean isLlegoMeta() {
+        return llegoMeta;
+    }
+
+    public void setLlegoMeta(boolean llegoMeta) {
+        this.llegoMeta = llegoMeta;
     }
     
     

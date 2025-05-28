@@ -121,7 +121,7 @@ public class Mapas extends JPanel {
         
         synchronized (this.jugadores) {
             for (Jugador j : this.jugadores) {
-                if (j.isVivo() && imgJugador != null) { 
+                if (j.isVivo() && !j.isLlegoMeta() && imgJugador != null) { 
                     // System.out.println("MAPAS: Dibujando Jugador: " + j.getNombre() + " en (" + j.getX() + "," + j.getY() + ") Salud: " + j.getSalud());
                     g.drawImage(imgJugador, j.getX() * 40, j.getY() * 40, 40, 40, this);
                     

@@ -8,21 +8,26 @@ import Modelos.ActualizacionEstadoJuegoDTO; // << NUEVO
 import java.io.*;
 import java.util.Arrays;
 import java.util.List;
+import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities; // Para asegurar actualizaciones de UI en el EDT
 
 public class EscuchaServidorThread extends Thread {
     private ObjectInputStream entrada;
+    private ObjectOutputStream salida;
     private ReceptorMensajes receptor; // Puede ser PantallaLobby o ZonaJuego
     private volatile boolean isRunning = true; // Para detener el hilo limpiamente
+    private String nombreMapa;
 
-    public EscuchaServidorThread(ObjectInputStream entrada, ReceptorMensajes receptor) {
+
+    public EscuchaServidorThread(ObjectInputStream entrada,ObjectOutputStream salida,ReceptorMensajes receptor) {
         this.entrada = entrada;
+        this.salida = salida;
         this.receptor = receptor;
     }
 
     public void setReceptor(ReceptorMensajes nuevoReceptor) {
         this.receptor = nuevoReceptor;
-        System.out.println("🔄 Receptor cambiado a: " + nuevoReceptor.getClass().getSimpleName());
+        System.out.println("Receptor cambiado a: " + nuevoReceptor.getClass().getSimpleName());
     }
 
     public void detener() {
@@ -36,6 +41,23 @@ public class EscuchaServidorThread extends Thread {
         }
         this.interrupt(); 
     }
+    
+    private List<String> jugadoresConectados;
+
+    public void guardarJugadores(List<String> jugadores) {
+        this.jugadoresConectados = jugadores;
+    }
+
+    public void reenviarJugadores() {
+        if (receptor instanceof ZonaJuego zona && jugadoresConectados != null) {
+            zona.actualizarListaJugadores(jugadoresConectados);
+        }
+    }
+
+    public String getNombreMapa() {
+        return nombreMapa;
+    }
+
 
 
     @Override
@@ -57,6 +79,11 @@ public class EscuchaServidorThread extends Thread {
                         case ACTUALIZAR_JUGADORES: 
                             if (finalMensaje.getContenido() instanceof String listaNombresStr) {
                                 List<String> nombresJugadores = Arrays.asList(listaNombresStr.split(","));
+
+                                // Guardamos la lista recibida para posible reenvío
+                                jugadoresConectados = nombresJugadores;
+                                System.out.println("ACTUALIZAR_JUGADORES recibido: " + nombresJugadores);
+
                                 if (receptor instanceof PantallaLobby lobby) {
                                     lobby.actualizarListaJugadores(nombresJugadores);
                                 } else if (receptor instanceof ZonaJuego zona) {
@@ -90,10 +117,63 @@ public class EscuchaServidorThread extends Thread {
                             receptor.recibirMensaje(finalMensaje);
                             break;
                         
-                        case FINALIZAR_JUEGO: 
-                            System.out.println("CLIENTE EscuchaServidorThread: Mensaje FINALIZAR_JUEGO recibido.");
-                            receptor.recibirMensaje(finalMensaje);
+                        
+                        case LLEGO_META:
+                            if (receptor instanceof ZonaJuego zona) {
+                                zona.desactivarControles(); 
+                                JOptionPane.showMessageDialog(zona, mensaje.getContenido().toString(), "Nivel Finalizado", JOptionPane.INFORMATION_MESSAGE);
+                            }
+                            break; 
+                        case ACTIVAR_CONTROLES:
+                            if (receptor instanceof ZonaJuego zona) {
+                                zona.activarControles(); 
+                            }
                             break;
+                        case ACTUALIZAR_TIEMPO:
+                            if (receptor instanceof ZonaJuego zona && mensaje.getContenido() instanceof Long segundos) {
+                                zona.actualizarTiempoPartida(segundos);
+                            }
+                            break;
+                        case REINICIAR_JUEGO:
+                            if (receptor instanceof ZonaJuego zona && mensaje.getContenido() instanceof String nombreMapa) {
+                                zona.cargarPanelMapa(nombreMapa);  
+                                zona.activarControles(); 
+                            } else if (receptor instanceof PantallaLobby lobby && mensaje.getContenido() instanceof String nombreMapa) {
+                                lobby.setNombreMapa(nombreMapa); 
+                            }
+                            break;
+                        case CONTROL:
+                            if (mensaje.getContenido() instanceof String comando) {
+                                switch (comando) {
+                                    case "INICIAR_JUEGO":
+                                        if (receptor instanceof ZonaJuego zona) {
+                                            zona.iniciarJuego();
+                                        }
+                                        break;
+                                    case "SALIR_PARTIDA":
+                                        // no hace nada aquí
+                                        break;
+                                }
+                            }
+                            break;
+                        case VOLVER_LOBBY:
+                            if (receptor instanceof ZonaJuego zona) {
+                                zona.dispose(); 
+
+                                PantallaLobby lobby = new PantallaLobby();
+                                lobby.initData(zona.getNombreJugador(), salida, entrada, this);
+                                setReceptor(lobby);
+                                
+                                lobby.habilitarIngreso();
+                            }
+                            break;
+                        case FINALIZAR_JUEGO:
+                            JOptionPane.showMessageDialog(null, "El servidor ha cerrado la partida.", "Desconectado", JOptionPane.INFORMATION_MESSAGE);
+                            System.exit(0);
+                            break;
+
+
+
 
                         default:
                             // System.out.println("CLIENTE EscuchaServidorThread: Mensaje de tipo " + finalMensaje.getTipo() + " recibido, pasando al receptor general.");

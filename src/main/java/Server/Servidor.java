@@ -7,6 +7,7 @@ import Personajes.Zombie;
 import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import Modelos.ActualizacionEstadoJuegoDTO;
+import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.util.ArrayList;
@@ -35,6 +36,11 @@ public class Servidor {
     private Timer gameLoopTimer;
     private final int GAME_TICK_MS = 150; 
     private AtomicInteger zombieIdCounter = new AtomicInteger(0); // Para IDs únicos de zombies
+    private int nivelActual = 1;
+    private int MAX_NIVELES = 10;
+    private long inicioPartidaMillis;
+    private long tiempoActualPartida;
+
 
 
     public Servidor(PantallaServidor pantalla) {
@@ -87,6 +93,7 @@ public class Servidor {
             }
         }
     }
+    
     
     public synchronized void agregarJugadorEnEspera(String nombre) {
         if (!nombresEnEspera.contains(nombre)) {
@@ -152,9 +159,23 @@ public class Servidor {
                 }
             }
             nombresEnEspera.clear();
+            String listaNombres = String.join(",", jugadores.keySet());
+            Mensaje actualizar = new Mensaje("SERVIDOR", listaNombres, "TODOS", TipoMensaje.ACTUALIZAR_JUGADORES);
+
+            for (ThreadServidor cliente : clientesAceptados) {
+                try {
+                    cliente.salida.writeObject(actualizar);
+                    cliente.salida.flush();
+                } catch (IOException e) {
+                    System.err.println("Error al enviar lista de jugadores: " + e.getMessage());
+                }
+            }
         }
 
         inicializarZombies();
+        inicioPartidaMillis = System.currentTimeMillis();
+        tiempoActualPartida = 0;
+
 
         if (gameLoopTimer != null) {
             gameLoopTimer.cancel(); 
@@ -168,9 +189,19 @@ public class Servidor {
         }, 0, GAME_TICK_MS);
 
         pantalla.write("Bucle de juego iniciado.");
+       Mensaje mensajeInicio = new Mensaje("SERVIDOR", "INICIAR_JUEGO", "TODOS", TipoMensaje.CONTROL);
+        for (ThreadServidor cliente : clientesAceptados) {
+            try {
+                cliente.salida.writeObject(mensajeInicio);
+                cliente.salida.flush();
+            } catch (IOException e) {
+                System.err.println("Error al enviar mensaje a cliente " + cliente.nombre + ": " + e.getMessage());
+            }
+        }
     }
 
     private synchronized void actualizarLogicaJuego() {
+        tiempoActualPartida = System.currentTimeMillis() - inicioPartidaMillis;
         List<Jugador> jugadoresActualesLista; 
         synchronized(jugadores) {
             jugadoresActualesLista = new ArrayList<>(jugadores.values());
@@ -186,6 +217,9 @@ public class Servidor {
             }
         }
         enviarActualizacionEstadoJuego();
+        
+        verificarEstadoJuego();
+
     }
 
     public synchronized void privateMessage(Mensaje mensaje) {
@@ -347,6 +381,23 @@ public class Servidor {
     public ServerSocket getServerSocket() {
         return serverSocket;
     }
+    
+    public Map<String, Jugador> getJugadores() {
+        return jugadores;
+    }
+
+    public List<Zombie> getZombies() {
+        return zombies;
+    }
+
+    public List<String> getNombresEnEspera() {
+        return nombresEnEspera;
+    }
+
+    public void setNivelActual(int nivel) {
+        this.nivelActual = nivel;
+    }
+
 
     public synchronized void detenerServidor() {
         pantalla.write("Deteniendo el servidor...");
@@ -393,4 +444,124 @@ public class Servidor {
         }
         pantalla.write("Servidor detenido.");
     }
+    
+    // Este método se usa para ver si hay aún jugadores vivos o muertos
+    private synchronized void verificarEstadoJuego() {
+         boolean algunoMurio = false;
+        boolean todosEnSalida = true;
+
+        for (Jugador j : jugadores.values()) {
+            if (!j.isVivo()) {
+                algunoMurio = true; 
+            } else {
+                
+                if (mapaBase[j.getY()][j.getX()] != 'S') {
+                    todosEnSalida = false;
+                    j.setNotificadoLlegada(false); // Se permite volver a notificar si se movió
+                } else {
+                    if (!j.isNotificadoLlegada()) {
+                        long tiempoSegundos = tiempoActualPartida / 1000;
+                        j.setLlegoMeta(true);
+                        j.setTiempoEscape(tiempoSegundos);
+                        j.setNotificadoLlegada(true);
+
+                        pantalla.write("⏱️ Tiempo registrado para " + j.getNombre() + ": " + tiempoSegundos + "s");
+
+                        Mensaje msg = new Mensaje(
+                            "Servidor", "¡Llegaste a la salida!", j.getNombre(), TipoMensaje.LLEGO_META
+                        );
+                        privateMessage(msg);
+                    }
+                }
+            }
+        }
+
+        if (algunoMurio) {
+            pantalla.write("Un jugador ha muerto. Reiniciando juego...");
+            reiniciarJuego();
+        } else if (todosEnSalida) {
+            pantalla.write("Todos los jugadores vivos llegaron a la salida. Avanzando de nivel...");
+            avanzarDeNivel();
+        }
+    }
+    
+    public synchronized void avanzarDeNivel() {
+        nivelActual++;
+        if (nivelActual > MAX_NIVELES) nivelActual = 1;
+
+        this.mapaBase = cargarMapas.cargarMapaDesdeArchivo("mapa" + nivelActual + ".txt");
+
+        nombresEnEspera.clear();
+        nombresEnEspera.addAll(jugadores.keySet());
+        jugadores.clear();
+
+        Mensaje reinicio = new Mensaje("Servidor", "mapa" + nivelActual + ".txt", "ALL", TipoMensaje.REINICIAR_JUEGO);
+        broadcoast(reinicio);
+
+        pantalla.write("Avanzando al nivel " + nivelActual + "...");
+
+        if (!nombresEnEspera.isEmpty()) {
+            iniciarJuego();
+            pantalla.write("Nivel " + nivelActual + " iniciado.");
+        } else {
+            pantalla.write("No hay jugadores en espera. No se inició el nuevo nivel.");
+        }
+    }
+        
+    public synchronized void reiniciarJuego() {
+        nivelActual = 1;
+        this.mapaBase = cargarMapas.cargarMapaDesdeArchivo("mapa1.txt");
+
+        nombresEnEspera.clear();
+        nombresEnEspera.addAll(jugadores.keySet());
+        jugadores.clear();
+
+        Mensaje desbloquear = new Mensaje("SERVIDOR", "UNLOCK", "TODOS", TipoMensaje.VOLVER_LOBBY);
+        broadcoast(desbloquear);
+
+        Mensaje reinicio = new Mensaje("Servidor", "mapa1.txt", "ALL", TipoMensaje.REINICIAR_JUEGO);
+        broadcoast(reinicio);
+
+        pantalla.write("Reiniciando juego con los jugadores en espera...");
+
+        if (!nombresEnEspera.isEmpty()) {
+            iniciarJuego();
+        } else {
+            pantalla.write("Nadie en espera. No se reinició el juego.");
+        }
+    }
+
+
+    
+    public void enviarActualizacionTiempo() {
+        long segundos = tiempoActualPartida / 1000;
+        Mensaje msg = new Mensaje("Servidor", segundos, "ALL", TipoMensaje.ACTUALIZAR_TIEMPO);
+        broadcoast(msg);
+    }
+
+    public synchronized void copiarMapaAlProyecto(File archivoOrigen) {
+        try {
+            String nombreArchivo = archivoOrigen.getName();
+
+            File destino = new File("src/main/resources/Mapas/" + nombreArchivo);
+            if (destino.exists()) {
+                pantalla.write("Ya existe un mapa con ese nombre: " + nombreArchivo);
+                return;
+            }
+
+            java.nio.file.Files.copy(archivoOrigen.toPath(), destino.toPath());
+
+            MAX_NIVELES++; 
+            pantalla.write("Mapa " + nombreArchivo + " copiado al proyecto como nivel " + MAX_NIVELES);
+
+        } catch (IOException e) {
+            pantalla.write("Error al copiar el mapa: " + e.getMessage());
+        }
+    }
+
+
+    
+    
+
+
 }

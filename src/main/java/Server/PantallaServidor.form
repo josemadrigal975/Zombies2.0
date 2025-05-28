@@ -31,6 +31,7 @@
                   <Component id="btnIniciarJuego" alignment="0" max="32767" attributes="0"/>
                   <Component id="btnFinalizar" alignment="0" pref="112" max="32767" attributes="0"/>
                   <Component id="btnParar" alignment="0" max="32767" attributes="0"/>
+                  <Component id="btnMasMapas" max="32767" attributes="0"/>
               </Group>
               <EmptySpace pref="31" max="32767" attributes="0"/>
           </Group>
@@ -47,6 +48,8 @@
                       <Component id="btnFinalizar" min="-2" max="-2" attributes="0"/>
                       <EmptySpace min="-2" pref="33" max="-2" attributes="0"/>
                       <Component id="btnParar" min="-2" max="-2" attributes="0"/>
+                      <EmptySpace min="-2" pref="38" max="-2" attributes="0"/>
+                      <Component id="btnMasMapas" min="-2" max="-2" attributes="0"/>
                   </Group>
                   <Component id="jScrollPane1" min="-2" pref="390" max="-2" attributes="0"/>
               </Group>
@@ -83,11 +86,25 @@
       <Properties>
         <Property name="text" type="java.lang.String" value="Finalizar Juego"/>
       </Properties>
+      <Events>
+        <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="btnFinalizarActionPerformed"/>
+      </Events>
     </Component>
     <Component class="javax.swing.JButton" name="btnParar">
       <Properties>
         <Property name="text" type="java.lang.String" value="Parar Server"/>
       </Properties>
+      <Events>
+        <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="btnPararActionPerformed"/>
+      </Events>
+    </Component>
+    <Component class="javax.swing.JButton" name="btnMasMapas">
+      <Properties>
+        <Property name="text" type="java.lang.String" value="Agregar Mapas"/>
+      </Properties>
+      <Events>
+        <EventHandler event="actionPerformed" listener="java.awt.event.ActionListener" parameters="java.awt.event.ActionEvent" handler="btnMasMapasActionPerformed"/>
+      </Events>
     </Component>
   </SubComponents>
 </Form>
