@@ -8,14 +8,13 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.util.ArrayList;
-// import java.util.Collections; // No se usa directamente aquí
 import java.util.List;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 
 public class Mapas extends JPanel {
     private char[][] mapa;
-    private Image imgMuro, imgPiso, imgJugador, imgZombie, imgSalida, imgFrancotirador; // NUEVO imgFrancotirador
+    private Image imgMuro, imgPiso, imgJugador, imgZombie, imgSalida, imgFrancotirador;
     private List<Jugador> jugadores = new ArrayList<>();    
     private List<Zombie> zombies = new ArrayList<>();
 
@@ -36,12 +35,12 @@ public class Mapas extends JPanel {
         imgMuro = cargarImagen("/Imagenes/muroo.jpg");
         imgPiso = cargarImagen("/Imagenes/piso.jpeg");
         imgZombie = cargarImagen("/Imagenes/zombie.png");
-        imgJugador = cargarImagen("/Imagenes/jugadora.jpg");
+        imgJugador = cargarImagen("/Imagenes/jugadora.jpg"); // Imagen para jugador normal
         imgSalida = cargarImagen("/Imagenes/salida.jpeg");
-        imgFrancotirador = cargarImagen("/Imagenes/francotirador.jpg"); // NUEVO: Asegúrate de tener esta imagen
+        imgFrancotirador = cargarImagen("/Imagenes/francotirador.jpg"); // Imagen para francotirador
         if (imgFrancotirador == null) {
             System.err.println("MAPAS: ❌ Imagen de francotirador no encontrada, usando imagen de jugador normal como fallback.");
-            imgFrancotirador = imgJugador; // Fallback si no se carga
+            imgFrancotirador = imgJugador;
         }
     }
 
@@ -74,7 +73,6 @@ public class Mapas extends JPanel {
             return;
         }
 
-        // 1. Dibujar el mapa base
         for (int fila = 0; fila < mapa.length; fila++) {
             for (int col = 0; col < mapa[0].length; col++) {
                 char c = mapa[fila][col];
@@ -99,7 +97,6 @@ public class Mapas extends JPanel {
             }
         }
         
-        // 2. Dibujar Zombies
         synchronized (this.zombies) { 
             for (Zombie z : this.zombies) {
                 if (z.getVidas() > 0 && imgZombie != null) {
@@ -108,23 +105,21 @@ public class Mapas extends JPanel {
             }
         }
         
-        // 3. Dibujar Jugadores
         synchronized (this.jugadores) {
             for (Jugador j : this.jugadores) {
-                Image imgParaJugador = imgJugador; 
-                if (j.esFrancotirador()) {
-                    imgParaJugador = imgFrancotirador;
-                }
+                Image imgParaJugador = j.esFrancotirador() ? imgFrancotirador : imgJugador;
 
-                if ((j.isVivo() || j.esFrancotirador()) && imgParaJugador != null) { 
+                // Dibujar jugador si está vivo O es francotirador (francotiradores no "mueren" por salud)
+                // Y no ha llegado a la meta (los que llegaron a la meta no se dibujan o se dibujan diferente)
+                if ((j.isVivo() || j.esFrancotirador()) && !j.isLlegoMeta() && imgParaJugador != null) { 
                     g.drawImage(imgParaJugador, j.getX() * 40, j.getY() * 40, 40, 40, this);
                     
-                    g.setColor(Color.WHITE);
+                    g.setColor(Color.WHITE); // Nombre del jugador
                     g.setFont(new Font("Arial", Font.BOLD, 11));
                     int nombreWidth = g.getFontMetrics().stringWidth(j.getNombre());
                     g.drawString(j.getNombre(), j.getX() * 40 + (40 - nombreWidth) / 2, j.getY() * 40 + 10); 
 
-                    if (!j.esFrancotirador()) {
+                    if (!j.esFrancotirador()) { // Barra de salud solo para no francotiradores
                         int saludActual = j.getSalud();
                         int maxSalud = 100; 
                         double porcentajeSalud = Math.max(0, (double) saludActual / maxSalud);
@@ -137,14 +132,12 @@ public class Mapas extends JPanel {
                         g.setColor(Color.BLACK); 
                         g.drawRect(j.getX() * 40 + 1, j.getY() * 40 - 7, 38, 5);
                     }
-                    else { // Es francotirador, dibujar munición debajo del nombre si se prefiere en el mapa
-                        // g.setColor(Color.ORANGE);
-                        // g.setFont(new Font("Arial", Font.PLAIN, 10));
-                        // String municionStr = j.getMunicionFrancotirador() + "b"; // Corto para el mapa
-                        // int municionWidth = g.getFontMetrics().stringWidth(municionStr);
-                        // g.drawString(municionStr, j.getX() * 40 + (40 - municionWidth) / 2, j.getY() * 40 + 38);
-                        // La munición ya se muestra en lblMunicionDisplay en ZonaJuego
-                    }
+                    // La munición del francotirador se muestra en lblMunicionDisplay en ZonaJuego.
+                } else if (!j.isVivo() && !j.esFrancotirador()) { // Si está muerto y no es francotirador
+                    // Opcional: dibujar una "X" o tumba
+                    g.setColor(Color.RED);
+                    g.setFont(new Font("Arial", Font.BOLD, 30));
+                    g.drawString("X", j.getX() * 40 + 10, j.getY() * 40 + 30);
                 }
             }
         }

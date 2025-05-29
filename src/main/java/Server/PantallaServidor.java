@@ -4,6 +4,13 @@
  */
 package Server;
 
+import Modelos.Mensaje; // Necesario para TipoMensaje
+import Modelos.TipoMensaje; // Necesario para TipoMensaje
+import java.io.File;
+import java.io.IOException; // Necesario para IOException
+import javax.swing.JFileChooser;
+import javax.swing.JOptionPane;
+
 /**
  *
  * @author jos_m
@@ -18,17 +25,19 @@ public class PantallaServidor extends javax.swing.JFrame {
     public PantallaServidor() {
         initComponents();
         server = new Servidor(this);
-        
     }
     
     public void write(String texto) {
         if (txtAreaServer != null) {
-            txtAreaServer.append(texto + "\n");
+            // Asegurar que la actualización de la UI se haga en el Event Dispatch Thread
+            javax.swing.SwingUtilities.invokeLater(() -> {
+                txtAreaServer.append(texto + "\n");
+                txtAreaServer.setCaretPosition(txtAreaServer.getDocument().getLength()); // Auto-scroll
+            });
         } else {
-            System.err.println("[ERROR] txtArea aún no está listo: " + texto);
+            System.err.println("SERVER_UI_ERROR: txtAreaServer es nulo. Mensaje: " + texto);
         }
     }
-
 
     /**
      * This method is called from within the constructor to initialize the form.
@@ -42,61 +51,135 @@ public class PantallaServidor extends javax.swing.JFrame {
         jScrollPane1 = new javax.swing.JScrollPane();
         txtAreaServer = new javax.swing.JTextArea();
         btnIniciarJuego = new javax.swing.JButton();
-        btnFinalizar = new javax.swing.JButton();
-        btnParar = new javax.swing.JButton();
+        btnFinalizarJuegoActual = new javax.swing.JButton();
+        btnPararServer = new javax.swing.JButton();
+        btnAgregarMapa = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            public void windowClosing(java.awt.event.WindowEvent evt) {
+                formWindowClosing(evt);
+            }
+        });
 
+        txtAreaServer.setEditable(false);
         txtAreaServer.setColumns(20);
         txtAreaServer.setRows(5);
         jScrollPane1.setViewportView(txtAreaServer);
 
-        btnIniciarJuego.setText("Iniciar Juego");
+        btnIniciarJuego.setText("Iniciar Juego / Próximo Nivel");
         btnIniciarJuego.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 btnIniciarJuegoActionPerformed(evt);
             }
         });
 
-        btnFinalizar.setText("Finalizar Juego");
+        btnFinalizarJuegoActual.setText("Forzar Reinicio (Nivel 1)");
+        btnFinalizarJuegoActual.setToolTipText("Termina la partida actual y prepara para reiniciar en nivel 1. Los jugadores volverán al lobby.");
+        btnFinalizarJuegoActual.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnFinalizarJuegoActualActionPerformed(evt);
+            }
+        });
 
-        btnParar.setText("Parar Server");
+        btnPararServer.setText("Parar Servidor");
+        btnPararServer.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnPararServerActionPerformed(evt);
+            }
+        });
+
+        btnAgregarMapa.setText("Agregar Mapa (.txt)");
+        btnAgregarMapa.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnAgregarMapaActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addGap(35, 35, 35)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 545, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addGap(57, 57, 57)
+                .addGap(20, 20, 20)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 550, Short.MAX_VALUE)
+                .addGap(18, 18, 18)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(btnIniciarJuego, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(btnFinalizar, javax.swing.GroupLayout.DEFAULT_SIZE, 112, Short.MAX_VALUE)
-                    .addComponent(btnParar, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                .addContainerGap(31, Short.MAX_VALUE))
+                    .addComponent(btnFinalizarJuegoActual, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(btnPararServer, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(btnAgregarMapa, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGap(20, 20, 20))
         );
         layout.setVerticalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(layout.createSequentialGroup()
-                .addGap(24, 24, 24)
+                .addGap(20, 20, 20)
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(btnIniciarJuego)
-                        .addGap(38, 38, 38)
-                        .addComponent(btnFinalizar)
-                        .addGap(33, 33, 33)
-                        .addComponent(btnParar))
-                    .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 390, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addContainerGap(40, Short.MAX_VALUE))
+                        .addComponent(btnIniciarJuego, javax.swing.GroupLayout.PREFERRED_SIZE, 35, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18)
+                        .addComponent(btnFinalizarJuegoActual, javax.swing.GroupLayout.PREFERRED_SIZE, 35, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(18, 18, 18)
+                        .addComponent(btnAgregarMapa, javax.swing.GroupLayout.PREFERRED_SIZE, 35, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(btnPararServer, javax.swing.GroupLayout.PREFERRED_SIZE, 35, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 400, Short.MAX_VALUE))
+                .addGap(20, 20, 20))
         );
 
         pack();
+        setLocationRelativeTo(null);
     }// </editor-fold>//GEN-END:initComponents
 
     private void btnIniciarJuegoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnIniciarJuegoActionPerformed
-        server.iniciarJuego();
+        if (server.getNombresEnEsperaList().isEmpty() && server.getJugadoresMap().isEmpty()) {
+            write("No hay jugadores en espera ni activos para iniciar el juego.");
+            JOptionPane.showMessageDialog(this, "No hay jugadores conectados o en espera.", "Juego no iniciado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        // Si hay jugadores activos (posiblemente de un nivel anterior)
+        // o jugadores en espera, iniciarJuego los procesará.
+        server.iniciarJuego(); 
     }//GEN-LAST:event_btnIniciarJuegoActionPerformed
+
+    private void btnAgregarMapaActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnAgregarMapaActionPerformed
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Seleccionar nuevo mapa (.txt)");
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos de Texto (.txt)", "txt"));
+        fileChooser.setAcceptAllFileFilterUsed(false);
+
+        int resultado = fileChooser.showOpenDialog(this);
+        if (resultado == JFileChooser.APPROVE_OPTION) {
+            File archivoSeleccionado = fileChooser.getSelectedFile();
+            server.copiarMapaAlProyecto(archivoSeleccionado); // El método en Servidor maneja la lógica y logs
+        }
+    }//GEN-LAST:event_btnAgregarMapaActionPerformed
+
+    private void btnFinalizarJuegoActualActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnFinalizarJuegoActualActionPerformed
+        write("Forzando reinicio del juego al nivel 1...");
+        server.reiniciarJuegoAlNivel1();
+        // Los clientes serán notificados para volver al lobby y cargar el mapa1.
+    }//GEN-LAST:event_btnFinalizarJuegoActualActionPerformed
+
+    private void btnPararServerActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnPararServerActionPerformed
+        write("Iniciando secuencia de parada del servidor...");
+        server.detenerServidor(); // Esto notificará a los clientes y cerrará sockets
+        // Después de un breve retraso para permitir que los mensajes se envíen, cerrar la aplicación.
+        // Este dispose() + System.exit() es para cerrar la UI del servidor.
+        // El server.detenerServidor() ya maneja el cierre de ServerSocket y threads.
+        try {
+            Thread.sleep(500); // Dar tiempo a que se envíen los mensajes de cierre
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        this.dispose();
+        System.exit(0);
+    }//GEN-LAST:event_btnPararServerActionPerformed
+
+    private void formWindowClosing(java.awt.event.WindowEvent evt) {//GEN-FIRST:event_formWindowClosing
+        btnPararServerActionPerformed(null); // Reutilizar la lógica del botón para asegurar cierre limpio.
+    }//GEN-LAST:event_formWindowClosing
 
     /**
      * @param args the command line arguments
@@ -134,9 +217,10 @@ public class PantallaServidor extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
-    private javax.swing.JButton btnFinalizar;
+    private javax.swing.JButton btnAgregarMapa;
+    private javax.swing.JButton btnFinalizarJuegoActual;
     private javax.swing.JButton btnIniciarJuego;
-    private javax.swing.JButton btnParar;
+    private javax.swing.JButton btnPararServer;
     private javax.swing.JScrollPane jScrollPane1;
     private javax.swing.JTextArea txtAreaServer;
     // End of variables declaration//GEN-END:variables
