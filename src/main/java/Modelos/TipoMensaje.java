@@ -13,11 +13,11 @@ package Modelos;
 public enum TipoMensaje {
     PUBLICO,
     PRIVADO,
-    DISPARO,
+    DISPARO, // Podría ser para disparos normales en el futuro
+    DISPARO_FRANCOTIRADOR, // NUEVO
     MOVER,
-    INICIALIZAR, // Podría usarse para enviar el estado inicial completo, incluyendo zombies
+    INICIALIZAR, 
     FINALIZAR_JUEGO,
-    ACTUALIZAR_JUGADORES,    // Para la lista de nombres en el lobby/combobox
-    ACTUALIZAR_ESTADO_JUEGO  // NUEVO: Para posiciones de jugadores, zombies, salud, etc.
-    // ACTUALIZAR_POSICIONES ya no se usará directamente, se reemplaza por ACTUALIZAR_ESTADO_JUEGO
+    ACTUALIZAR_JUGADORES,    
+    ACTUALIZAR_ESTADO_JUEGO  
 }

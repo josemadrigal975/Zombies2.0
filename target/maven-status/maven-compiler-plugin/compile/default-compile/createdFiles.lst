@@ -1,7 +1,9 @@
 Mapas\Mapas.class
+Cliente\ZonaJuego$8.class
 Cliente\ZonaJuego$1.class
 com\mycompany\zombiesmultiplayer\ZombiesMultiplayer.class
 Server\Servidor$1.class
+Cliente\ZonaJuego$10.class
 Cliente\PantallaLobby$1.class
 Server\ThreadServidor$1.class
 Cliente\EscuchaServidorThread$1.class
@@ -9,6 +11,7 @@ Cliente\ReceptorMensajes.class
 Cliente\PantallaLobby$4.class
 Cliente\PantallaLobby$7.class
 Server\PantallaServidor$1.class
+Cliente\ZonaJuego$9.class
 Cliente\Pantalla.class
 Cliente\EscuchaServidorThread.class
 Cliente\ZonaJuego$5.class
@@ -37,6 +40,7 @@ Modelos\TipoMensaje.class
 Cliente\ZonaJuego$4.class
 Sonidos\ReproductorAudio.class
 Cliente\Pantalla$2.class
+Cliente\ZonaJuego$7.class
 Cliente\PantallaLobby$5.class
 Fondos\FondoPanel.class
 Server\ConexionThreads.class

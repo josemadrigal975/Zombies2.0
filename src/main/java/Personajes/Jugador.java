@@ -11,11 +11,13 @@ import java.io.Serializable;
  * @author jos_m
  */
 public class Jugador implements Serializable {
+    private static final long serialVersionUID = 101L; // Nueva version por cambios
     public String nombre;
     public int x, y;
     public boolean vivo = true;
     public int salud = 100;
-    public boolean francotirador = false;
+    public boolean esFrancotirador = false; // NUEVO
+    public int municionFrancotirador = 10; // NUEVO
 
     public Jugador(String nombre, int x, int y) {
         this.nombre = nombre;
@@ -23,6 +25,8 @@ public class Jugador implements Serializable {
         this.y = y;
         this.vivo = true;
         this.salud = 100;
+        this.esFrancotirador = false;
+        this.municionFrancotirador = 10; // Default para francotirador
     }
 
 
@@ -32,10 +36,13 @@ public class Jugador implements Serializable {
         this.y = other.y;
         this.vivo = other.vivo;
         this.salud = other.salud;
-        this.francotirador = other.francotirador;
+        this.esFrancotirador = other.esFrancotirador; // NUEVO
+        this.municionFrancotirador = other.municionFrancotirador; // NUEVO
     }
 
     public void recibirDano(int cantidad) {
+        if (esFrancotirador) return; // Los francotiradores en muros son inmunes a zombies
+
         if (!vivo) return;
         this.salud -= cantidad;
         System.out.println("Jugador " + nombre + " recibió " + cantidad + " de daño. Salud: " + this.salud);
@@ -43,7 +50,6 @@ public class Jugador implements Serializable {
             this.salud = 0;
             this.vivo = false;
             System.out.println("Jugador " + nombre + " ha muerto.");
-            // Aquí podría enviarse un mensaje al servidor o el servidor detectar la muerte
         }
     }
     
@@ -57,11 +63,14 @@ public class Jugador implements Serializable {
     public void setY(int y) { this.y = y; }
     public boolean isVivo() { return vivo; }
     public void setVivo(boolean vivo) { this.vivo = vivo; }
-    public int getSalud() { return salud; } // Getter para salud
-    public void setSalud(int salud) { this.salud = salud; } // Setter para salud
-    public boolean isFrancotirador() { return francotirador; }
-    public void setFrancotirador(boolean francotirador) { this.francotirador = francotirador; }
+    public int getSalud() { return salud; }
+    public void setSalud(int salud) { this.salud = salud; }
+    
+    public boolean esFrancotirador() { return esFrancotirador; } // NUEVO
+    public void setEsFrancotirador(boolean esFrancotirador) { this.esFrancotirador = esFrancotirador; } // NUEVO
+    public int getMunicionFrancotirador() { return municionFrancotirador; } // NUEVO
+    public void setMunicionFrancotirador(int municionFrancotirador) { this.municionFrancotirador = municionFrancotirador; } // NUEVO
+    public void gastarBala() { if(this.municionFrancotirador > 0) this.municionFrancotirador--;} //NUEVO
 
-    public Jugador() {} // Constructor vacío para deserialización
+    public Jugador() {} 
 }
-

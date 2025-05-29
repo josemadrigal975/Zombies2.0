@@ -8,14 +8,18 @@ import Modelos.Mensaje;
 import Modelos.TipoMensaje;
 import Sonidos.ReproductorAudio;
 import java.awt.Dimension;
+import java.awt.Point; // Para las coordenadas del clic
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter; // NUEVO
+import java.awt.event.MouseEvent;  // NUEVO
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
-import java.util.Collections; // Para Collections.emptyList()
+import java.util.Collections; 
 import java.util.List;
+import javax.swing.JLabel; // NUEVO para munición
 import javax.swing.SwingUtilities;
 
 public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, KeyListener {
@@ -27,15 +31,34 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     private List<Zombie> zombies = new ArrayList<>();
     private Mapas panelMapaActual;
     private char[][] definicionMapa;
+    private Jugador miJugador; // NUEVO: para referencia rápida al jugador actual
+    private JLabel lblMunicionDisplay; // NUEVO: para mostrar munición (variable de instancia)
+
 
     public ZonaJuego() {
-        initComponents();
+        initComponents(); // Esto inicializa lblMunicion si lo añades en el initComponents
         reproductor.reproducir("/Sonidos/musica.wav");
         txtSms.setEditable(false);
 
         this.addKeyListener(this);
         this.setFocusable(true);
-        // No llamar a requestFocusInWindow() aquí, hacerlo en initData después de setVisible(true)
+
+        // Si lblMunicionDisplay NO se añade a través del diseñador (initComponents):
+        if (lblMunicionDisplay == null) { // Solo crear si no fue inicializado por el diseñador
+            lblMunicionDisplay = new JLabel("Munición: N/A");
+            lblMunicionDisplay.setForeground(java.awt.Color.YELLOW); 
+            lblMunicionDisplay.setFont(new java.awt.Font("Arial", java.awt.Font.BOLD, 14));
+            // Posicionarlo: jLayeredPane1 es el panel de fondo del JFrame por defecto si es el único.
+            // Si jLayeredPane1 usa GroupLayout (default en NetBeans para el ContentPane),
+            // añadirlo aquí programáticamente sin alterar el GroupLayout es complicado.
+            // Asumimos que jLayeredPane1 tiene un layout que permite setBounds o lo añades a un subpanel.
+            // Para un layout simple, lo añadimos sobre jPanel1 (el panel del mapa).
+            // Esto requiere que jPanel1 no sea el contenedor directo del mapa con BorderLayout, sino que permita superposiciones.
+            // O mejor, añádelo al jLayeredPane1 directamente.
+            lblMunicionDisplay.setBounds(10, 10, 150, 20); // Coordenadas relativas a jLayeredPane1
+            jLayeredPane1.add(lblMunicionDisplay, javax.swing.JLayeredPane.MODAL_LAYER); // Capa alta
+        }
+         lblMunicionDisplay.setVisible(false); // Ocultar inicialmente
     }
     
     public void cargarPanelMapa() {
@@ -44,7 +67,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         panelMapaActual = new Mapas(definicionMapa);
 
         Dimension dim = panelMapaActual.getPreferredSize();
-        jPanel1.setLayout(null);
+        jPanel1.setLayout(null); 
         jPanel1.setPreferredSize(dim);
         jPanel1.setSize(dim);
 
@@ -55,30 +78,83 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jPanel1.revalidate();
         jPanel1.repaint();
         System.out.println("CLIENTE ZonaJuego: Panel del mapa cargado y añadido.");
+
+        panelMapaActual.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                handleMapClick(e);
+            }
+        });
     }
     
-    // setJugadoresInterno y setZombiesInterno ya no son necesarios con la nueva forma de actualizar listas.
+    private void handleMapClick(MouseEvent e) {
+        if (miJugador != null && miJugador.esFrancotirador()) {
+            if (miJugador.getMunicionFrancotirador() <= 0) {
+                txtSms.append("[Sistema] Estás sin munición.\n");
+                txtSms.setCaretPosition(txtSms.getDocument().getLength());
+                return;
+            }
 
-    public void actualizarEstadoJuego(List<Jugador> nuevosJugadores, List<Zombie> nuevosZombies) {
-        System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - Jugadores recibidos: " + (nuevosJugadores != null ? nuevosJugadores.size() : "null") + 
-                           ", Zombies: " + (nuevosZombies != null ? nuevosZombies.size() : "null"));
-        if (nuevosJugadores != null && !nuevosJugadores.isEmpty()) {
-            Jugador j = nuevosJugadores.get(0); // Asumimos que al menos hay un jugador si la lista no es vacía
-            // Solo loguear si el jugador es el propio cliente para no spamear por otros
-            if (j.getNombre().equals(this.nombreJugador)) {
-                System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - Mi jugador ("+j.getNombre()+") en DTO: (" + j.getX() + "," + j.getY() + "), Salud: " + j.getSalud());
+            int tileX = e.getX() / 40; 
+            int tileY = e.getY() / 40;
+
+            if (tileX >= 0 && tileX < definicionMapa[0].length && tileY >= 0 && tileY < definicionMapa.length) {
+                System.out.println("CLIENTE ZonaJuego: Francotirador " + nombreJugador + " apunta a (" + tileX + "," + tileY + ")");
+                try {
+                    Point objetivo = new Point(tileX, tileY);
+                    Mensaje msgDisparo = new Mensaje(nombreJugador, objetivo, "SERVER", TipoMensaje.DISPARO_FRANCOTIRADOR);
+                    salida.writeObject(msgDisparo);
+                    salida.flush();
+                } catch (IOException ex) {
+                    txtSms.append("[Error] No se pudo enviar el disparo: " + ex.getMessage() + "\n");
+                    txtSms.setCaretPosition(txtSms.getDocument().getLength());
+                }
             }
         }
+        this.requestFocusInWindow();
+    }
 
-        // Reemplazar las listas internas con nuevas copias de las listas recibidas
+
+    public void actualizarEstadoJuego(List<Jugador> nuevosJugadores, List<Zombie> nuevosZombies) {
         this.jugadores = new ArrayList<>(nuevosJugadores != null ? nuevosJugadores : Collections.emptyList());
         this.zombies = new ArrayList<>(nuevosZombies != null ? nuevosZombies : Collections.emptyList());
         
-        // System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - this.jugadores actualizado, size: " + this.jugadores.size());
-        // if (!this.jugadores.isEmpty() && this.jugadores.get(0).getNombre().equals(this.nombreJugador)){
-        //     System.out.println("CLIENTE ZonaJuego.actualizarEstadoJuego - Mi jugador en this.jugadores: " + this.jugadores.get(0).getNombre() + 
-        //                        " en (" + this.jugadores.get(0).getX() + "," + this.jugadores.get(0).getY() + ")");
-        // }
+        boolean miJugadorEncontrado = false;
+        for (Jugador j : this.jugadores) {
+            if (j.getNombre().equals(this.nombreJugador)) {
+                miJugador = j; 
+                miJugadorEncontrado = true;
+                if (j.esFrancotirador()) {
+                    lblMunicionDisplay.setText("Balas: " + j.getMunicionFrancotirador());
+                    lblMunicionDisplay.setVisible(true);
+                } else {
+                    lblMunicionDisplay.setVisible(false);
+                }
+                break;
+            }
+        }
+        if (!miJugadorEncontrado) {
+            // Si mi jugador ya no está en la lista (p.ej. murió y el servidor no lo envía)
+            // O si el juego terminó y la lista de jugadores está vacía.
+             if (miJugador != null) { // Si teníamos una referencia previa
+                 if (!miJugador.esFrancotirador() && !miJugador.isVivo()) {
+                     lblMunicionDisplay.setText("ELIMINADO");
+                     lblMunicionDisplay.setForeground(java.awt.Color.RED);
+                     lblMunicionDisplay.setVisible(true);
+                 } else if (miJugador.esFrancotirador()) {
+                     // Si era francotirador y ya no está en la lista, podría ser fin de juego
+                     // o algo así. Mantenemos la última munición visible o un mensaje.
+                     // lblMunicionDisplay.setText("Francotirador Inactivo");
+                     // lblMunicionDisplay.setVisible(true);
+                 } else {
+                     lblMunicionDisplay.setVisible(false);
+                 }
+             } else { // No hay referencia a miJugador (inicio de juego o error)
+                lblMunicionDisplay.setVisible(false);
+             }
+             miJugador = null; // Limpiar referencia si no se encontró
+        }
+
 
         SwingUtilities.invokeLater(this::repaintMapa);
     }
@@ -89,16 +165,9 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             cargarPanelMapa();
         }
         
-        // System.out.println("CLIENTE ZonaJuego.repaintMapa: Pasando jugadores (" + this.jugadores.size() + ") y zombies (" + this.zombies.size() + ") al panel del mapa.");
-        // if (!this.jugadores.isEmpty() && this.jugadores.get(0).getNombre().equals(this.nombreJugador)){
-        //     System.out.println("CLIENTE ZonaJuego.repaintMapa - Mi jugador en this.jugadores ANTES de setJugadores: " + this.jugadores.get(0).getNombre() + 
-        //                        " en (" + this.jugadores.get(0).getX() + "," + this.jugadores.get(0).getY() + ")");
-        // }
-
         panelMapaActual.setJugadores(this.jugadores); 
         panelMapaActual.setZombies(this.zombies);
 
-        // System.out.println("CLIENTE ZonaJuego.repaintMapa: Llamando a revalidate y repaint en jPanel1.");
         jPanel1.revalidate();
         jPanel1.repaint();    
     }
@@ -109,8 +178,12 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         this.entrada = entrada;
 
         setTitle("Zona de juego de " + nombreJugador);
+        if (lblMunicionDisplay != null) { // Asegurarse de que exista
+             lblMunicionDisplay.setVisible(false);
+        }
 
-        cargarPanelMapa();
+
+        cargarPanelMapa(); 
         pack(); 
         setLocationRelativeTo(null);
         setVisible(true); 
@@ -122,10 +195,6 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
             } else {
                 System.out.println("CLIENTE ZonaJuego: ZonaJuego (JFrame) obtuvo el foco inicial correctamente.");
             }
-            // Adicionalmente, verificar si el panel principal tiene el foco si es necesario,
-            // aunque el KeyListener está en el JFrame.
-            // System.out.println("CLIENTE ZonaJuego: Foco en JFrame después de invokeLater: " + this.isFocusOwner());
-            // System.out.println("CLIENTE ZonaJuego: Componente con foco: " + (getFocusOwner() != null ? getFocusOwner().getClass().getSimpleName() : "null"));
         });
     }
     
@@ -160,6 +229,8 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         btnEnviarPrivado = new javax.swing.JButton();
         txtPrivado = new javax.swing.JTextField();
         btnSalir = new javax.swing.JButton();
+        // Si vas a añadir lblMunicionDisplay aquí desde el diseñador:
+        // lblMunicionDisplay = new javax.swing.JLabel(); 
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
         addKeyListener(new java.awt.event.KeyAdapter() {
@@ -184,13 +255,29 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jScrollPane1.setViewportView(txtSms);
 
         btnEnviarPublico.setText("Enviar Mensaje Público");
+        btnEnviarPublico.setFocusable(false); // Para que no robe foco del JFrame para KeyListener
         btnEnviarPublico.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 btnEnviarPublicoActionPerformed(evt);
             }
         });
 
+        txtPublico.addFocusListener(new java.awt.event.FocusAdapter() { // Para cuando gana foco
+            public void focusGained(java.awt.event.FocusEvent evt) {
+                // Opcional: manejar algo cuando el campo de texto gana foco
+            }
+        });
+         txtPublico.addKeyListener(new java.awt.event.KeyAdapter() { // Para Enter en txtPublico
+            public void keyPressed(java.awt.event.KeyEvent evt) {
+                if (evt.getKeyCode() == KeyEvent.VK_ENTER) {
+                    btnEnviarPublicoActionPerformed(null); // Simula clic en botón
+                }
+            }
+        });
+
+
         comboElegir.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "ALL" }));
+        comboElegir.setFocusable(false);
         comboElegir.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 comboElegirActionPerformed(evt);
@@ -198,18 +285,34 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         });
 
         btnEnviarPrivado.setText("Enviar Mensaje Privado");
+        btnEnviarPrivado.setFocusable(false);
         btnEnviarPrivado.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 btnEnviarPrivadoActionPerformed(evt);
             }
         });
+        
+        txtPrivado.addKeyListener(new java.awt.event.KeyAdapter() { // Para Enter en txtPrivado
+            public void keyPressed(java.awt.event.KeyEvent evt) {
+                if (evt.getKeyCode() == KeyEvent.VK_ENTER) {
+                    btnEnviarPrivadoActionPerformed(null); // Simula clic en botón
+                }
+            }
+        });
+
 
         btnSalir.setText("Salir");
+        btnSalir.setFocusable(false);
         btnSalir.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 btnSalirActionPerformed(evt);
             }
         });
+
+        // Ejemplo de cómo se vería lblMunicionDisplay si se añade en el diseñador:
+        // lblMunicionDisplay.setText("Munición: 10/10");
+        // jLayeredPane1.setLayer(lblMunicionDisplay, javax.swing.JLayeredPane.MODAL_LAYER);
+        // ... y luego añadirlo al GroupLayout ...
 
         jLayeredPane1.setLayer(jPanel1, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(jScrollPane1, javax.swing.JLayeredPane.DEFAULT_LAYER);
@@ -219,6 +322,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         jLayeredPane1.setLayer(btnEnviarPrivado, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(txtPrivado, javax.swing.JLayeredPane.DEFAULT_LAYER);
         jLayeredPane1.setLayer(btnSalir, javax.swing.JLayeredPane.DEFAULT_LAYER);
+        // jLayeredPane1.setLayer(lblMunicionDisplay, javax.swing.JLayeredPane.MODAL_LAYER); // Si se añade aquí
 
         javax.swing.GroupLayout jLayeredPane1Layout = new javax.swing.GroupLayout(jLayeredPane1);
         jLayeredPane1.setLayout(jLayeredPane1Layout);
@@ -286,6 +390,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
                 txtPublico.setText("");
             } catch (IOException e) {
                 txtSms.append("[Error] No se pudo enviar el mensaje público\n");
+                txtSms.setCaretPosition(txtSms.getDocument().getLength());
             }
         }
         this.requestFocusInWindow(); 
@@ -297,6 +402,7 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         
         if (selectedItem == null) {
             txtSms.append("[Error] Ningún destinatario seleccionado.\n");
+            txtSms.setCaretPosition(txtSms.getDocument().getLength());
             this.requestFocusInWindow();
             return;
         }
@@ -307,10 +413,16 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
                 TipoMensaje tipo = receptor.equals("ALL") ? TipoMensaje.PUBLICO : TipoMensaje.PRIVADO;
                 Mensaje mensaje = new Mensaje(nombreJugador, texto, receptor, tipo);
                 salida.writeObject(mensaje);
+                
+                 if (tipo == TipoMensaje.PRIVADO && !receptor.equals("ALL") && !receptor.equals(nombreJugador)) {
+                     txtSms.append("[Privado a " + receptor + "] " + texto + "\n");
+                 }
                 txtPrivado.setText("");
+
             } catch (IOException e) {
                 txtSms.append("[Error] No se pudo enviar el mensaje privado\n");
             }
+             txtSms.setCaretPosition(txtSms.getDocument().getLength());
         }
         this.requestFocusInWindow(); 
     }//GEN-LAST:event_btnEnviarPrivadoActionPerformed
@@ -320,11 +432,31 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     }//GEN-LAST:event_comboElegirActionPerformed
 
     private void formKeyPressed(java.awt.event.KeyEvent evt) {//GEN-FIRST:event_formKeyPressed
-        keyPressed(evt); 
+        // No es necesario llamar a keyPressed(evt) aquí si ya está registrado el KeyListener
+        // en el constructor. De hecho, podría causar doble procesamiento.
+        // Si este método fue generado por el diseñador de Netbeans al añadir un KeyListener
+        // directamente al JFrame, y también lo añades programáticamente con `this.addKeyListener(this)`,
+        // puedes eliminar la llamada aquí o el `this.addKeyListener(this)`.
+        // Es más limpio manejarlo solo con `this.addKeyListener(this)`.
     }//GEN-LAST:event_formKeyPressed
 
     private void btnSalirActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSalirActionPerformed
-        this.dispose();
+         try {
+            if (salida != null) {
+                // Opcional: Enviar un mensaje de FINALIZAR_JUEGO o similar para que el servidor sepa
+                // Mensaje msgDesconexion = new Mensaje(nombreJugador, "DESCONECTADO_VOLUNTARIAMENTE", "SERVER", TipoMensaje.FINALIZAR_JUEGO);
+                // salida.writeObject(msgDesconexion);
+                // salida.flush();
+                // El servidor ya maneja la desconexión a través de EOFException o SocketException en ThreadServidor.
+            }
+        } catch (Exception e) { 
+            System.err.println("Error al intentar notificar desconexión (opcional): " + e.getMessage());
+        } finally {
+            this.dispose(); // Cierra la ventana, detiene la música, y debería terminar el hilo de EscuchaServidor por error de stream
+            // Considerar si es necesario un System.exit(0) si la aplicación no cierra completamente
+            // debido a otros hilos no demonio. Normalmente, cerrar la última ventana JFrame con
+            // EXIT_ON_CLOSE debería terminar la JVM.
+        }
     }//GEN-LAST:event_btnSalirActionPerformed
 
     public static void main(String args[]) {
@@ -347,20 +479,40 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
     private javax.swing.JTextField txtPublico;
     private javax.swing.JTextArea txtSms;
     // End of variables declaration//GEN-END:variables
+    // Si lblMunicionDisplay fue añadido en el diseñador, también estaría aquí:
+    // private javax.swing.JLabel lblMunicionDisplay;
 
     @Override
     public void recibirMensaje(Mensaje mensaje) {
         SwingUtilities.invokeLater(() -> {
+            if (txtSms == null) {
+                System.err.println("CLIENTE ZonaJuego.recibirMensaje: txtSms es null. Mensaje no mostrado: " + mensaje);
+                return;
+            }
+
             if (mensaje.getTipo() == TipoMensaje.PUBLICO) {
                 txtSms.append(mensaje.getEnviador() + ": " + mensaje.getContenido().toString() + "\n");
             } else if (mensaje.getTipo() == TipoMensaje.PRIVADO) {
-                 txtSms.append("[Privado de " + mensaje.getEnviador() + "] " + mensaje.getContenido().toString() + "\n");
-            } else if (mensaje.getContenido() != null) {
+                 if (mensaje.getEnviador().equals("Servidor")) { // Mensajes del sistema/feedback
+                     txtSms.append("[Sistema] " + mensaje.getContenido().toString() + "\n");
+                 } else if (!mensaje.getEnviador().equals(nombreJugador)) { // No mostrar mis propios mensajes privados enviados
+                     txtSms.append("[Privado de " + mensaje.getEnviador() + "] " + mensaje.getContenido().toString() + "\n");
+                 }
+            } else if (mensaje.getTipo() == TipoMensaje.FINALIZAR_JUEGO) {
+                 txtSms.append("[Servidor] " + mensaje.getContenido().toString() + "\n");
+                 txtPublico.setEnabled(false);
+                 txtPrivado.setEnabled(false);
+                 btnEnviarPrivado.setEnabled(false);
+                 btnEnviarPublico.setEnabled(false);
+                 // Podrías querer mostrar un mensaje de "Juego finalizado" más prominentemente
+            }
+             else if (mensaje.getContenido() != null) { 
                  String contenidoStr = mensaje.getContenido().toString();
                  if (contenidoStr.contains("Desconectado") || contenidoStr.contains("Conexión perdida") || contenidoStr.contains("Error de comunicación")) {
                     txtSms.append("[" + mensaje.getEnviador() + "] " + contenidoStr + "\n");
                  }
             }
+            txtSms.setCaretPosition(txtSms.getDocument().getLength());
         });
     }
     
@@ -371,24 +523,20 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
 
     @Override
     public void keyPressed(KeyEvent e) {
-        System.out.println("CLIENTE ZonaJuego keyPressed: " + KeyEvent.getKeyText(e.getKeyCode()) + 
-                           ", Foco en JFrame: " + this.isFocusOwner() +
-                           ", Componente con foco: " + (getFocusOwner() != null ? getFocusOwner().getClass().getSimpleName() : "null"));
-
         if (txtPublico.hasFocus() || txtPrivado.hasFocus()) {
-            System.out.println("CLIENTE ZonaJuego: Foco en campo de texto, ignorando tecla de juego: " + KeyEvent.getKeyText(e.getKeyCode()));
-            if (e.getKeyCode() == KeyEvent.VK_ENTER) {
-                if (txtPublico.hasFocus()) {
-                    btnEnviarPublico.doClick();
-                } else if (txtPrivado.hasFocus()) {
-                    btnEnviarPrivado.doClick();
-                }
-            }
+            // El listener de Enter en los campos de texto ya maneja esto.
             return; 
         }
 
+        if (miJugador != null && miJugador.esFrancotirador()) {
+            return; // Francotiradores no se mueven con teclas
+        }
+        
+        if (miJugador != null && !miJugador.isVivo()){
+            return; // Jugadores muertos no se mueven
+        }
+
         if (salida == null) {
-            System.out.println("CLIENTE ZonaJuego: Salida es null, no se puede enviar movimiento.");
             return;
         }
 
@@ -401,13 +549,13 @@ public class ZonaJuego extends javax.swing.JFrame implements ReceptorMensajes, K
         }
 
         if (direccion != null) {
-            System.out.println("CLIENTE ZonaJuego: Intentando enviar movimiento: " + direccion + " para " + nombreJugador);
             try {
                 Mensaje msgMovimiento = new Mensaje(nombreJugador, direccion, "SERVER", TipoMensaje.MOVER);
                 salida.writeObject(msgMovimiento);
                 salida.flush();
             } catch (IOException ex) {
                 txtSms.append("[Error] No se pudo enviar el movimiento: " + ex.getMessage() + "\n");
+                txtSms.setCaretPosition(txtSms.getDocument().getLength());
             }
         }
     }
